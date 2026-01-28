@@ -9,6 +9,8 @@ import { FloorPlan } from "@/components/floor-plan/floor-plan";
 import { DateSlotPicker } from "@/components/booking/date-slot-picker";
 import { SeatManagement } from "@/components/admin/seat-management";
 import { BookingManagement } from "@/components/admin/booking-management";
+import { FloorPlanEditor } from "@/components/admin/floor-plan-editor";
+import { UserManagement } from "@/components/admin/user-management";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Seat, Booking, TimeSlot } from "@shared/schema";
 import { isUnauthorizedError } from "@/lib/auth-utils";
@@ -145,10 +147,12 @@ export default function AdminPortal() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-5">
             <TabsTrigger value="overview" data-testid="tab-overview">Floor Plan</TabsTrigger>
-            <TabsTrigger value="seats" data-testid="tab-seats">Seat Management</TabsTrigger>
-            <TabsTrigger value="bookings" data-testid="tab-bookings">All Bookings</TabsTrigger>
+            <TabsTrigger value="config" data-testid="tab-config">Configure</TabsTrigger>
+            <TabsTrigger value="seats" data-testid="tab-seats">Seats</TabsTrigger>
+            <TabsTrigger value="bookings" data-testid="tab-bookings">Bookings</TabsTrigger>
+            <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -172,6 +176,13 @@ export default function AdminPortal() {
             </div>
           </TabsContent>
 
+          <TabsContent value="config">
+            <FloorPlanEditor
+              seats={seats}
+              isLoading={seatsLoading}
+            />
+          </TabsContent>
+
           <TabsContent value="seats">
             <SeatManagement
               seats={seats}
@@ -191,6 +202,10 @@ export default function AdminPortal() {
               isCancelling={cancelBookingMutation.isPending}
               isLoading={bookingsLoading || seatsLoading}
             />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <UserManagement />
           </TabsContent>
         </Tabs>
       </main>

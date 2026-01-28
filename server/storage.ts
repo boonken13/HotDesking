@@ -9,10 +9,14 @@ import { eq, and, gte, lte, isNull, sql } from "drizzle-orm";
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   
   // User role operations
   getUserRole(userId: string): Promise<UserRole | undefined>;
+  getAllUserRoles(): Promise<UserRole[]>;
   setUserRole(data: InsertUserRole): Promise<UserRole>;
+  updateUserRole(userId: string, updates: { role?: "employee" | "admin"; isActive?: boolean }): Promise<UserRole | undefined>;
+  deleteUserRole(userId: string): Promise<boolean>;
   
   // Seat operations
   getAllSeats(): Promise<Seat[]>;
@@ -58,6 +62,28 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return role;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(users.createdAt);
+  }
+
+  async getAllUserRoles(): Promise<UserRole[]> {
+    return db.select().from(userRoles).orderBy(userRoles.createdAt);
+  }
+
+  async updateUserRole(userId: string, updates: { role?: "employee" | "admin"; isActive?: boolean }): Promise<UserRole | undefined> {
+    const [updated] = await db
+      .update(userRoles)
+      .set(updates)
+      .where(eq(userRoles.userId, userId))
+      .returning();
+    return updated;
+  }
+
+  async deleteUserRole(userId: string): Promise<boolean> {
+    await db.delete(userRoles).where(eq(userRoles.userId, userId));
+    return true;
   }
 
   // Seat operations

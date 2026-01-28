@@ -18,6 +18,7 @@ export const userRoleEnum = pgEnum("user_role", ["employee", "admin"]);
 export const userRoles = pgTable("user_roles", {
   userId: varchar("user_id").primaryKey(),
   role: userRoleEnum("role").notNull().default("employee"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -92,14 +93,35 @@ export const insertUserRoleSchema = createInsertSchema(userRoles).omit({
   createdAt: true,
 });
 
+export const updateUserRoleSchema = z.object({
+  role: z.enum(["employee", "admin"]).optional(),
+  isActive: z.boolean().optional(),
+});
+
 // Partial update schemas for admin operations
 export const updateSeatSchema = z.object({
+  name: z.string().min(1).max(10).optional(),
+  type: z.enum(["solo", "team_cluster"]).optional(),
   hasMonitor: z.boolean().optional(),
   isBlocked: z.boolean().optional(),
   isLongTermReserved: z.boolean().optional(),
   longTermReservedBy: z.string().nullable().optional(),
   longTermReservedUntil: z.string().nullable().optional(),
   metadata: z.record(z.string()).optional(),
+  positionX: z.number().optional(),
+  positionY: z.number().optional(),
+  clusterGroup: z.string().nullable().optional(),
+});
+
+// Create seat schema for admin
+export const createSeatSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(10),
+  type: z.enum(["solo", "team_cluster"]),
+  hasMonitor: z.boolean().default(false),
+  positionX: z.number().default(0),
+  positionY: z.number().default(0),
+  clusterGroup: z.string().nullable().optional(),
 });
 
 export const blockSeatSchema = z.object({

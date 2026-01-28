@@ -7,7 +7,9 @@ import {
   bulkBookingSchema, 
   updateSeatSchema, 
   blockSeatSchema, 
-  longTermReservationSchema 
+  longTermReservationSchema,
+  createSeatSchema,
+  updateUserRoleSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -118,6 +120,63 @@ export async function registerRoutes(
     }
   });
 
+  // Create seat (admin only)
+  app.post("/api/seats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (userRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const seatData = createSeatSchema.parse(req.body);
+      
+      // Check if seat with same id or name exists
+      const existingSeat = await storage.getSeat(seatData.id);
+      if (existingSeat) {
+        return res.status(409).json({ message: "Seat with this ID already exists" });
+      }
+      
+      const existingByName = await storage.getSeatByName(seatData.name);
+      if (existingByName) {
+        return res.status(409).json({ message: "Seat with this name already exists" });
+      }
+
+      const seat = await storage.createSeat(seatData);
+      res.status(201).json(seat);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid seat data", errors: error.errors });
+      }
+      console.error("Error creating seat:", error);
+      res.status(500).json({ message: "Failed to create seat" });
+    }
+  });
+
+  // Delete seat (admin only)
+  app.delete("/api/seats/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (userRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const seat = await storage.getSeat(req.params.id);
+      if (!seat) {
+        return res.status(404).json({ message: "Seat not found" });
+      }
+
+      await storage.deleteSeat(req.params.id);
+      res.json({ message: "Seat deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting seat:", error);
+      res.status(500).json({ message: "Failed to delete seat" });
+    }
+  });
+
   // Set long-term reservation (admin only)
   app.patch("/api/seats/:id/long-term", isAuthenticated, async (req: any, res) => {
     try {
@@ -176,7 +235,8 @@ export async function registerRoutes(
   // Get bookings by date
   app.get("/api/bookings/date/:date", isAuthenticated, async (req, res) => {
     try {
-      const bookings = await storage.getBookingsByDate(req.params.date);
+      const date = req.params.date as string;
+      const bookings = await storage.getBookingsByDate(date);
       res.json(bookings);
     } catch (error) {
       console.error("Error fetching bookings by date:", error);
@@ -338,6 +398,136 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error cancelling booking:", error);
       res.status(500).json({ message: "Failed to cancel booking" });
+    }
+  });
+
+  // ==================== USER MANAGEMENT API ====================
+
+  // Get all users with roles (admin only)
+  app.get("/api/users", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (userRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const users = await storage.getAllUsers();
+      const roles = await storage.getAllUserRoles();
+      
+      // Combine users with their roles
+      const usersWithRoles = users.map(user => {
+        const role = roles.find(r => r.userId === user.id);
+        return {
+          ...user,
+          role: role?.role || "employee",
+          isActive: role?.isActive ?? true,
+        };
+      });
+
+      res.json(usersWithRoles);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Update user role (admin only)
+  app.patch("/api/users/:userId/role", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const adminRole = await storage.getUserRole(adminId);
+      
+      if (adminRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.userId;
+      
+      // Prevent admin from demoting themselves
+      if (targetUserId === adminId && req.body.role === "employee") {
+        return res.status(400).json({ message: "Cannot demote yourself" });
+      }
+
+      const updates = updateUserRoleSchema.parse(req.body);
+      
+      // Check if user role exists, if not create it
+      let userRole = await storage.getUserRole(targetUserId);
+      if (!userRole) {
+        userRole = await storage.setUserRole({ userId: targetUserId, role: updates.role || "employee" });
+      } else {
+        userRole = await storage.updateUserRole(targetUserId, updates);
+      }
+
+      res.json(userRole);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating user role:", error);
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  // Deactivate/activate user (admin only)
+  app.patch("/api/users/:userId/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const adminRole = await storage.getUserRole(adminId);
+      
+      if (adminRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.userId;
+      
+      // Prevent admin from deactivating themselves
+      if (targetUserId === adminId) {
+        return res.status(400).json({ message: "Cannot deactivate yourself" });
+      }
+
+      const { isActive } = z.object({ isActive: z.boolean() }).parse(req.body);
+      
+      // Check if user role exists, if not create it
+      let userRole = await storage.getUserRole(targetUserId);
+      if (!userRole) {
+        userRole = await storage.setUserRole({ userId: targetUserId, role: "employee" });
+      }
+      
+      userRole = await storage.updateUserRole(targetUserId, { isActive });
+      res.json(userRole);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating user status:", error);
+      res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+
+  // Delete user role (admin only)
+  app.delete("/api/users/:userId", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const adminRole = await storage.getUserRole(adminId);
+      
+      if (adminRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.userId;
+      
+      // Prevent admin from deleting themselves
+      if (targetUserId === adminId) {
+        return res.status(400).json({ message: "Cannot delete yourself" });
+      }
+
+      await storage.deleteUserRole(targetUserId);
+      res.json({ message: "User removed successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
     }
   });
 
