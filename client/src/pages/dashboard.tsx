@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { format, startOfToday } from "date-fns";
+import { format, startOfToday, eachDayOfInterval, isWeekend } from "date-fns";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -31,6 +31,9 @@ export default function Dashboard({ userRole }: DashboardProps) {
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkDates, setBulkDates] = useState<Date[]>([]);
   const [activeTab, setActiveTab] = useState("book");
+  const [dateRangeMode, setDateRangeMode] = useState(true);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
 
   // Fetch seats
   const { data: seats = [], isLoading: seatsLoading } = useQuery<Seat[]>({
@@ -62,6 +65,8 @@ export default function Dashboard({ userRole }: DashboardProps) {
       setSelectedSeats([]);
       setSelectedSlots([]);
       setBulkDates([]);
+      setStartDate(null);
+      setEndDate(null);
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -121,9 +126,19 @@ export default function Dashboard({ userRole }: DashboardProps) {
   };
 
   const handleConfirmBooking = () => {
-    const dates = bulkMode && bulkDates.length > 0
-      ? bulkDates.map(d => format(d, "yyyy-MM-dd"))
-      : [format(selectedDate, "yyyy-MM-dd")];
+    let dates: string[];
+    
+    if (dateRangeMode && startDate && endDate) {
+      // Generate all weekdays between start and end date
+      const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+      dates = allDays
+        .filter(d => !isWeekend(d))
+        .map(d => format(d, "yyyy-MM-dd"));
+    } else if (bulkMode && bulkDates.length > 0) {
+      dates = bulkDates.map(d => format(d, "yyyy-MM-dd"));
+    } else {
+      dates = [format(selectedDate, "yyyy-MM-dd")];
+    }
 
     createBookingMutation.mutate({
       seatIds: selectedSeats,
@@ -161,12 +176,18 @@ export default function Dashboard({ userRole }: DashboardProps) {
             <div className="flex items-center gap-4">
               <div className="flex items-center space-x-2">
                 <Switch
-                  id="bulk-mode"
-                  checked={bulkMode}
-                  onCheckedChange={setBulkMode}
-                  data-testid="switch-bulk-mode"
+                  id="date-range-mode"
+                  checked={dateRangeMode}
+                  onCheckedChange={(checked) => {
+                    setDateRangeMode(checked);
+                    if (!checked) {
+                      setStartDate(null);
+                      setEndDate(null);
+                    }
+                  }}
+                  data-testid="switch-date-range-mode"
                 />
-                <Label htmlFor="bulk-mode" className="text-sm">Bulk Booking Mode</Label>
+                <Label htmlFor="date-range-mode" className="text-sm">Date Range Booking</Label>
               </div>
             </div>
 
@@ -175,7 +196,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                 <FloorPlan
                   seats={seats}
                   bookings={allBookings}
-                  selectedDate={format(selectedDate, "yyyy-MM-dd")}
+                  selectedDate={format(startDate || selectedDate, "yyyy-MM-dd")}
                   selectedSlots={selectedSlots}
                   selectedSeats={selectedSeats}
                   onSelectSeat={handleSelectSeat}
@@ -193,19 +214,28 @@ export default function Dashboard({ userRole }: DashboardProps) {
                   onSlotsChange={setSelectedSlots}
                   bulkDates={bulkDates}
                   onBulkDatesChange={setBulkDates}
-                  bulkMode={bulkMode}
+                  bulkMode={false}
+                  dateRangeMode={dateRangeMode}
+                  startDate={startDate}
+                  endDate={endDate}
+                  onStartDateChange={setStartDate}
+                  onEndDateChange={setEndDate}
                 />
                 <BookingSummary
                   selectedSeats={selectedSeatObjects}
-                  selectedDate={selectedDate}
+                  selectedDate={startDate || selectedDate}
                   selectedSlots={selectedSlots}
-                  bulkDates={bulkMode ? bulkDates : []}
+                  bulkDates={dateRangeMode && startDate && endDate 
+                    ? eachDayOfInterval({ start: startDate, end: endDate }).filter(d => !isWeekend(d))
+                    : bulkMode ? bulkDates : []}
                   onRemoveSeat={(seatId) => setSelectedSeats(prev => prev.filter(id => id !== seatId))}
                   onConfirmBooking={handleConfirmBooking}
                   onClearAll={() => {
                     setSelectedSeats([]);
                     setSelectedSlots([]);
                     setBulkDates([]);
+                    setStartDate(null);
+                    setEndDate(null);
                   }}
                   isBooking={createBookingMutation.isPending}
                 />
