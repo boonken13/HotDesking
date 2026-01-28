@@ -1,12 +1,11 @@
-import { useState } from "react";
-import { format, addDays, startOfWeek, isWeekend, isBefore, startOfToday } from "date-fns";
+import { useState, useEffect } from "react";
+import { format, addDays, startOfWeek, isWeekend, isBefore, startOfToday, eachDayOfInterval, isAfter } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarIcon, Sun, Moon, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TimeSlot } from "@shared/schema";
 
@@ -18,6 +17,11 @@ interface DateSlotPickerProps {
   bulkDates?: Date[];
   onBulkDatesChange?: (dates: Date[]) => void;
   bulkMode?: boolean;
+  dateRangeMode?: boolean;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  onStartDateChange?: (date: Date | null) => void;
+  onEndDateChange?: (date: Date | null) => void;
 }
 
 export function DateSlotPicker({
@@ -28,8 +32,15 @@ export function DateSlotPicker({
   bulkDates = [],
   onBulkDatesChange,
   bulkMode = false,
+  dateRangeMode = false,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
 }: DateSlotPickerProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [startCalendarOpen, setStartCalendarOpen] = useState(false);
+  const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const today = startOfToday();
 
   const toggleSlot = (slot: TimeSlot) => {
@@ -97,60 +108,153 @@ export function DateSlotPicker({
         <CardTitle className="text-base font-medium">Select Date & Time Slot</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Date Selection */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Date</label>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={goToPreviousDay}
-              disabled={isBefore(addDays(selectedDate, -1), today)}
-              data-testid="button-prev-day"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+        {/* Date Range Selection */}
+        {dateRangeMode && onStartDateChange && onEndDateChange ? (
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CalendarRange className="h-4 w-4" />
+              Date Range
+            </label>
             
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="flex-1 justify-start text-left font-normal"
-                  data-testid="button-date-picker"
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(selectedDate, "EEEE, MMMM d, yyyy")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => {
-                    if (date) {
-                      onDateChange(date);
-                      setCalendarOpen(false);
-                    }
-                  }}
-                  disabled={(date) => isBefore(date, today) || isWeekend(date)}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-            
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={goToNextDay}
-              data-testid="button-next-day"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+            {/* From Date */}
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">From</label>
+              <Popover open={startCalendarOpen} onOpenChange={setStartCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                    data-testid="button-start-date"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "EEEE, MMM d, yyyy") : "Select start date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate || undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        onStartDateChange(date);
+                        if (endDate && isBefore(endDate, date)) {
+                          onEndDateChange(null);
+                        }
+                        setStartCalendarOpen(false);
+                      }
+                    }}
+                    disabled={(date) => isBefore(date, today) || isWeekend(date)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-        {/* Bulk Date Selection */}
-        {bulkMode && onBulkDatesChange && (
+            {/* To Date */}
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">To</label>
+              <Popover open={endCalendarOpen} onOpenChange={setEndCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                    data-testid="button-end-date"
+                    disabled={!startDate}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "EEEE, MMM d, yyyy") : "Select end date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate || undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        onEndDateChange(date);
+                        setEndCalendarOpen(false);
+                      }
+                    }}
+                    disabled={(date) => 
+                      isBefore(date, today) || 
+                      isWeekend(date) || 
+                      (startDate ? isBefore(date, startDate) : false)
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Date Range Summary */}
+            {startDate && endDate && (
+              <div className="rounded-lg bg-muted/50 p-2 text-xs">
+                <span className="font-medium">
+                  {(() => {
+                    const days = eachDayOfInterval({ start: startDate, end: endDate })
+                      .filter(d => !isWeekend(d));
+                    return `${days.length} weekday${days.length === 1 ? '' : 's'} selected`;
+                  })()}
+                </span>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Single Date Selection */
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Date</label>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goToPreviousDay}
+                disabled={isBefore(addDays(selectedDate, -1), today)}
+                data-testid="button-prev-day"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex-1 justify-start text-left font-normal"
+                    data-testid="button-date-picker"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(selectedDate, "EEEE, MMMM d, yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        onDateChange(date);
+                        setCalendarOpen(false);
+                      }
+                    }}
+                    disabled={(date) => isBefore(date, today) || isWeekend(date)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goToNextDay}
+                data-testid="button-next-day"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Date Selection (legacy multi-select mode) */}
+        {bulkMode && !dateRangeMode && onBulkDatesChange && (
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Bulk Dates</label>
             <div className="flex flex-wrap gap-2 mb-2">
@@ -227,7 +331,9 @@ export function DateSlotPicker({
           <div className="rounded-lg bg-muted/50 p-3 text-sm">
             <p className="font-medium">Selected:</p>
             <p className="text-muted-foreground">
-              {bulkMode && bulkDates.length > 0
+              {dateRangeMode && startDate && endDate
+                ? `${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")}`
+                : bulkMode && bulkDates.length > 0
                 ? `${bulkDates.length} date(s)`
                 : format(selectedDate, "MMM d, yyyy")}
               {" • "}
