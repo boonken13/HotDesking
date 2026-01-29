@@ -137,7 +137,7 @@ export default function AdminPortal() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header user={user} userRole="admin" onLogout={logout} />
+      <Header user={user ?? null} userRole="admin" onLogout={logout} />
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">

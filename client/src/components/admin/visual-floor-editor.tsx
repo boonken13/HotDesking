@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Seat, Cluster } from "@shared/schema";
@@ -22,6 +22,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -32,6 +42,9 @@ import {
   Move,
   Grid3X3,
   Square,
+  Save,
+  Undo2,
+  AlertTriangle,
 } from "lucide-react";
 
 const GRID_SIZE = 20;
@@ -47,6 +60,17 @@ interface DragState {
   currentY: number;
 }
 
+interface LocalCluster extends Cluster {
+  isNew?: boolean;
+  isDeleted?: boolean;
+  isModified?: boolean;
+}
+
+interface LocalSeat extends Seat {
+  isNew?: boolean;
+  isDeleted?: boolean;
+}
+
 export function VisualFloorEditor() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -55,6 +79,7 @@ export function VisualFloorEditor() {
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [showCreateCluster, setShowCreateCluster] = useState(false);
   const [showAddSeat, setShowAddSeat] = useState(false);
+  const [showCapacityWarning, setShowCapacityWarning] = useState(false);
 
   const [newCluster, setNewCluster] = useState({
     label: "",
@@ -68,105 +93,57 @@ export function VisualFloorEditor() {
     hasMonitor: true,
   });
 
-  const { data: clusters = [], isLoading: clustersLoading } = useQuery<
-    Cluster[]
-  >({
+  // Local state for clusters and seats (changes are only saved on Save button)
+  const [localClusters, setLocalClusters] = useState<LocalCluster[]>([]);
+  const [localSeats, setLocalSeats] = useState<LocalSeat[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: serverClusters = [], isLoading: clustersLoading } = useQuery<Cluster[]>({
     queryKey: ["/api/clusters"],
   });
 
-  const { data: seats = [], isLoading: seatsLoading } = useQuery<Seat[]>({
+  const { data: serverSeats = [], isLoading: seatsLoading } = useQuery<Seat[]>({
     queryKey: ["/api/seats"],
   });
 
-  const updateClusterMutation = useMutation({
-    mutationFn: async ({
-      id,
-      ...updates
-    }: { id: string } & Partial<Cluster>) => {
-      return apiRequest("PATCH", `/api/clusters/${id}`, updates);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clusters"] });
-    },
-  });
-
-  const createClusterMutation = useMutation({
-    mutationFn: async (data: {
-      id: string;
-      label?: string;
-      positionX: number;
-      positionY: number;
-      gridCols: number;
-      gridRows: number;
-    }) => {
-      return apiRequest("POST", "/api/clusters", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clusters"] });
-      setShowCreateCluster(false);
-      setNewCluster({ label: "", gridCols: 2, gridRows: 2 });
-      toast({ title: "Cluster created" });
-    },
-    onError: (err: Error) => {
-      toast({
-        title: "Error creating cluster",
-        description: err.message,
-        variant: "destructive",
+  // Initialize local state from server data - only on fresh load
+  useEffect(() => {
+    if (!hasUnsavedChanges && serverClusters.length >= 0 && serverSeats.length >= 0) {
+      const newClusters = serverClusters.map(c => ({ ...c }));
+      const newSeats = serverSeats.map(s => ({ ...s }));
+      
+      // Only update if data actually changed to prevent loops
+      setLocalClusters(prev => {
+        if (JSON.stringify(prev.map(({isNew, isDeleted, isModified, ...rest}) => rest)) === 
+            JSON.stringify(newClusters)) {
+          return prev;
+        }
+        return newClusters;
       });
-    },
-  });
-
-  const deleteClusterMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/clusters/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clusters"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/seats"] });
-      setSelectedCluster(null);
-      toast({ title: "Cluster deleted" });
-    },
-  });
-
-  const createSeatMutation = useMutation({
-    mutationFn: async (data: {
-      id: string;
-      name: string;
-      type: "solo" | "team_cluster";
-      hasMonitor: boolean;
-      clusterGroup: string;
-      positionX: number;
-      positionY: number;
-    }) => {
-      return apiRequest("POST", "/api/seats", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/seats"] });
-      setShowAddSeat(false);
-      setNewSeat({ name: "", type: "team_cluster", hasMonitor: true });
-      toast({ title: "Seat added" });
-    },
-    onError: (err: Error) => {
-      toast({
-        title: "Error adding seat",
-        description: err.message,
-        variant: "destructive",
+      setLocalSeats(prev => {
+        if (JSON.stringify(prev.map(({isNew, isDeleted, ...rest}) => rest)) === 
+            JSON.stringify(newSeats)) {
+          return prev;
+        }
+        return newSeats;
       });
-    },
-  });
+    }
+  }, [serverClusters, serverSeats, hasUnsavedChanges]);
 
-  const deleteSeatMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/seats/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/seats"] });
-      toast({ title: "Seat deleted" });
-    },
-  });
+  // Compute active clusters and seats (excluding deleted ones)
+  const clusters = useMemo(() => 
+    localClusters.filter(c => !c.isDeleted),
+    [localClusters]
+  );
+
+  const seats = useMemo(() => 
+    localSeats.filter(s => !s.isDeleted),
+    [localSeats]
+  );
 
   const seatsByCluster = useMemo(() => {
-    const map = new Map<string, Seat[]>();
+    const map = new Map<string, LocalSeat[]>();
     seats.forEach((seat) => {
       const clusterId = seat.clusterGroup || "unassigned";
       const existing = map.get(clusterId) || [];
@@ -179,8 +156,160 @@ export function VisualFloorEditor() {
   const snapToGrid = (value: number) =>
     Math.round(value / GRID_SIZE) * GRID_SIZE;
 
+  // Validate grid dimensions - at least one must be ≤2 for accessibility
+  const validateGridDimensions = (cols: number, rows: number): boolean => {
+    return cols <= 2 || rows <= 2;
+  };
+
+  // Find next available position in cluster grid
+  const findNextAvailablePosition = (clusterId: string, gridCols: number, gridRows: number): { x: number; y: number } | null => {
+    const clusterSeats = seatsByCluster.get(clusterId) || [];
+    const occupied = new Set(clusterSeats.map(s => `${s.positionX},${s.positionY}`));
+    
+    for (let row = 0; row < gridRows; row++) {
+      for (let col = 0; col < gridCols; col++) {
+        if (!occupied.has(`${col},${row}`)) {
+          return { x: col, y: row };
+        }
+      }
+    }
+    return null; // Cluster is full
+  };
+
+  // Check if cluster has capacity for more seats
+  const hasClusterCapacity = (clusterId: string): boolean => {
+    const cluster = clusters.find(c => c.id === clusterId);
+    if (!cluster) return false;
+    const clusterSeats = seatsByCluster.get(clusterId) || [];
+    return clusterSeats.length < cluster.gridCols * cluster.gridRows;
+  };
+
+  // Update local cluster
+  const updateLocalCluster = (id: string, updates: Partial<LocalCluster>) => {
+    setLocalClusters(prev => 
+      prev.map(c => c.id === id ? { ...c, ...updates, isModified: true } : c)
+    );
+    setHasUnsavedChanges(true);
+  };
+
+  // Create local cluster
+  const createLocalCluster = (cluster: LocalCluster) => {
+    setLocalClusters(prev => [...prev, { ...cluster, isNew: true }]);
+    setHasUnsavedChanges(true);
+  };
+
+  // Delete local cluster
+  const deleteLocalCluster = (id: string) => {
+    setLocalClusters(prev => 
+      prev.map(c => c.id === id ? { ...c, isDeleted: true } : c)
+    );
+    // Also mark all seats in this cluster as deleted
+    setLocalSeats(prev =>
+      prev.map(s => s.clusterGroup === id ? { ...s, isDeleted: true } : s)
+    );
+    setSelectedCluster(null);
+    setHasUnsavedChanges(true);
+  };
+
+  // Create local seat
+  const createLocalSeat = (seat: LocalSeat) => {
+    setLocalSeats(prev => [...prev, { ...seat, isNew: true }]);
+    setHasUnsavedChanges(true);
+  };
+
+  // Delete local seat
+  const deleteLocalSeat = (id: string) => {
+    setLocalSeats(prev =>
+      prev.map(s => s.id === id ? { ...s, isDeleted: true } : s)
+    );
+    setHasUnsavedChanges(true);
+  };
+
+  // Reset to server state
+  const handleReset = () => {
+    setLocalClusters(serverClusters.map(c => ({ ...c })));
+    setLocalSeats(serverSeats.map(s => ({ ...s })));
+    setHasUnsavedChanges(false);
+    setSelectedCluster(null);
+    toast({ title: "Changes discarded" });
+  };
+
+  // Save all changes to server
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Process deleted clusters
+      const deletedClusters = localClusters.filter(c => c.isDeleted && !c.isNew);
+      for (const cluster of deletedClusters) {
+        await apiRequest("DELETE", `/api/clusters/${cluster.id}`);
+      }
+
+      // Process deleted seats
+      const deletedSeats = localSeats.filter(s => s.isDeleted && !s.isNew);
+      for (const seat of deletedSeats) {
+        await apiRequest("DELETE", `/api/seats/${seat.id}`);
+      }
+
+      // Process new clusters
+      const newClusters = localClusters.filter(c => c.isNew && !c.isDeleted);
+      for (const cluster of newClusters) {
+        await apiRequest("POST", "/api/clusters", {
+          id: cluster.id,
+          label: cluster.label || undefined,
+          positionX: cluster.positionX,
+          positionY: cluster.positionY,
+          gridCols: cluster.gridCols,
+          gridRows: cluster.gridRows,
+          rotation: cluster.rotation,
+        });
+      }
+
+      // Process modified clusters
+      const modifiedClusters = localClusters.filter(c => c.isModified && !c.isNew && !c.isDeleted);
+      for (const cluster of modifiedClusters) {
+        await apiRequest("PATCH", `/api/clusters/${cluster.id}`, {
+          label: cluster.label,
+          positionX: cluster.positionX,
+          positionY: cluster.positionY,
+          gridCols: cluster.gridCols,
+          gridRows: cluster.gridRows,
+          rotation: cluster.rotation,
+        });
+      }
+
+      // Process new seats
+      const newSeats = localSeats.filter(s => s.isNew && !s.isDeleted);
+      for (const seat of newSeats) {
+        await apiRequest("POST", "/api/seats", {
+          id: seat.id,
+          name: seat.name,
+          type: seat.type,
+          hasMonitor: seat.hasMonitor,
+          clusterGroup: seat.clusterGroup,
+          positionX: seat.positionX,
+          positionY: seat.positionY,
+        });
+      }
+
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ["/api/clusters"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/seats"] });
+
+      setHasUnsavedChanges(false);
+      toast({ title: "Layout saved", description: "All changes have been saved." });
+    } catch (error) {
+      toast({ 
+        title: "Save failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent, clusterId: string, cluster: Cluster) => {
+    (e: React.MouseEvent, clusterId: string, cluster: LocalCluster) => {
       e.preventDefault();
       e.stopPropagation();
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -235,53 +364,110 @@ export function VisualFloorEditor() {
       (dragState.currentX !== dragState.startX ||
         dragState.currentY !== dragState.startY)
     ) {
-      updateClusterMutation.mutate({
-        id: dragState.clusterId,
+      updateLocalCluster(dragState.clusterId, {
         positionX: dragState.currentX,
         positionY: dragState.currentY,
       });
     }
     setDragState(null);
-  }, [dragState, updateClusterMutation]);
+  }, [dragState]);
 
   const handleRotate = (clusterId: string, currentRotation: number) => {
     const newRotation = (currentRotation + 90) % 360;
-    updateClusterMutation.mutate({ id: clusterId, rotation: newRotation });
+    updateLocalCluster(clusterId, { rotation: newRotation });
   };
 
   const handleCreateCluster = () => {
+    if (!validateGridDimensions(newCluster.gridCols, newCluster.gridRows)) {
+      toast({
+        title: "Invalid grid size",
+        description: "At least one dimension (columns or rows) must be 2 or less to ensure all seats are accessible.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const id = `cluster-${Date.now()}`;
-    createClusterMutation.mutate({
+    createLocalCluster({
       id,
-      label: newCluster.label || undefined,
+      label: newCluster.label || null,
       positionX: 100,
       positionY: 100,
       gridCols: newCluster.gridCols,
       gridRows: newCluster.gridRows,
+      rotation: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
+    setShowCreateCluster(false);
+    setNewCluster({ label: "", gridCols: 2, gridRows: 2 });
+    toast({ title: "Cluster created" });
   };
 
   const handleAddSeat = () => {
     if (!selectedCluster || !newSeat.name) return;
 
-    const clusterSeats = seatsByCluster.get(selectedCluster) || [];
     const cluster = clusters.find((c) => c.id === selectedCluster);
-    const nextPosition = clusterSeats.length;
-    const posX = nextPosition % (cluster?.gridCols || 2);
-    const posY = Math.floor(nextPosition / (cluster?.gridCols || 2));
+    if (!cluster) return;
 
-    createSeatMutation.mutate({
+    if (!hasClusterCapacity(selectedCluster)) {
+      setShowCapacityWarning(true);
+      return;
+    }
+
+    const position = findNextAvailablePosition(selectedCluster, cluster.gridCols, cluster.gridRows);
+    if (!position) {
+      setShowCapacityWarning(true);
+      return;
+    }
+
+    createLocalSeat({
       id: `seat-${newSeat.name.toLowerCase()}`,
       name: newSeat.name,
       type: newSeat.type,
       hasMonitor: newSeat.hasMonitor,
       clusterGroup: selectedCluster,
-      positionX: posX,
-      positionY: posY,
+      positionX: position.x,
+      positionY: position.y,
+      isBlocked: false,
+      isLongTermReserved: false,
+      longTermReservedBy: null,
+      longTermReservedUntil: null,
+      metadata: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
+    setShowAddSeat(false);
+    setNewSeat({ name: "", type: "team_cluster", hasMonitor: true });
+    toast({ title: "Seat added" });
   };
 
-  const renderCluster = (cluster: Cluster) => {
+  const handleGridChange = (clusterId: string, cols: number, rows: number) => {
+    if (!validateGridDimensions(cols, rows)) {
+      toast({
+        title: "Invalid grid size",
+        description: "At least one dimension must be 2 or less.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const clusterSeats = seatsByCluster.get(clusterId) || [];
+    const newCapacity = cols * rows;
+    
+    if (clusterSeats.length > newCapacity) {
+      toast({
+        title: "Cannot resize",
+        description: `This cluster has ${clusterSeats.length} seats but the new size only fits ${newCapacity}. Remove some seats first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateLocalCluster(clusterId, { gridCols: cols, gridRows: rows });
+  };
+
+  const renderCluster = (cluster: LocalCluster) => {
     const clusterSeats = seatsByCluster.get(cluster.id) || [];
     const isSelected = selectedCluster === cluster.id;
     const isDragging = dragState?.clusterId === cluster.id;
@@ -297,7 +483,9 @@ export function VisualFloorEditor() {
         key={cluster.id}
         className={`absolute cursor-move ${
           isSelected ? "ring-2 ring-primary ring-offset-2" : ""
-        } ${isDragging ? "opacity-90 z-50 shadow-lg" : ""}`}
+        } ${isDragging ? "opacity-90 z-50 shadow-lg" : ""} ${
+          cluster.isNew ? "ring-1 ring-green-500" : ""
+        }`}
         style={{
           left: posX,
           top: posY,
@@ -323,6 +511,11 @@ export function VisualFloorEditor() {
             <Badge variant="outline" className="text-xs">
               {cluster.gridCols}x{cluster.gridRows}
             </Badge>
+            {cluster.isNew && (
+              <Badge variant="default" className="text-xs bg-green-600">
+                New
+              </Badge>
+            )}
           </div>
 
           <div className="absolute -top-3 right-2">
@@ -352,7 +545,9 @@ export function VisualFloorEditor() {
                           ? "bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-200 border border-orange-300"
                           : seat.isBlocked
                             ? "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-400"
-                            : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-400"
+                            : seat.isNew
+                              ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 border border-green-400"
+                              : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-400"
                         : "bg-muted/30 border border-dashed border-muted-foreground/30"
                     }`}
                     style={{
@@ -414,6 +609,7 @@ export function VisualFloorEditor() {
               <Button
                 variant="outline"
                 onClick={() => setShowAddSeat(true)}
+                disabled={!hasClusterCapacity(selectedCluster)}
                 data-testid="button-add-seat-to-cluster"
               >
                 <Square className="h-4 w-4 mr-2" />
@@ -434,7 +630,7 @@ export function VisualFloorEditor() {
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => deleteClusterMutation.mutate(selectedCluster)}
+                onClick={() => deleteLocalCluster(selectedCluster)}
                 data-testid="button-delete-cluster"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -443,14 +639,47 @@ export function VisualFloorEditor() {
             </>
           )}
         </div>
+        <div className="flex items-center gap-2">
+          {hasUnsavedChanges && (
+            <>
+              <Badge variant="outline" className="gap-1 text-amber-600 border-amber-400">
+                <AlertTriangle className="h-3 w-3" />
+                Unsaved changes
+              </Badge>
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={isSaving}
+                data-testid="button-reset-layout"
+              >
+                <Undo2 className="h-4 w-4 mr-2" />
+                Reset
+              </Button>
+            </>
+          )}
+          <Button
+            onClick={handleSave}
+            disabled={!hasUnsavedChanges || isSaving}
+            data-testid="button-save-layout"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? "Saving..." : "Save Layout"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
         <Badge variant="secondary" className="gap-1">
           <Move className="h-3 w-3" />
           Drag clusters to reposition
         </Badge>
+        <Badge variant="outline" className="text-xs">
+          Grid max: One dimension must be ≤2 for accessibility
+        </Badge>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-4">
-        <Card>
+        <Card className="h-fit">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Floor Plan Canvas</CardTitle>
           </CardHeader>
@@ -459,8 +688,9 @@ export function VisualFloorEditor() {
               ref={canvasRef}
               className="relative bg-muted/20 rounded-lg border border-dashed border-border overflow-auto"
               style={{
-                height: "calc(100vh - 320px)",
-                minHeight: 500,
+                height: "500px",
+                maxHeight: "500px",
+                minHeight: "500px",
               }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -483,7 +713,7 @@ export function VisualFloorEditor() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="h-fit">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Properties</CardTitle>
           </CardHeader>
@@ -502,8 +732,7 @@ export function VisualFloorEditor() {
                   <Input
                     value={selectedClusterData.label || ""}
                     onChange={(e) =>
-                      updateClusterMutation.mutate({
-                        id: selectedClusterData.id,
+                      updateLocalCluster(selectedClusterData.id, {
                         label: e.target.value || null,
                       })
                     }
@@ -514,34 +743,30 @@ export function VisualFloorEditor() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label>Columns</Label>
+                    <Label>Columns (max 2 if rows &gt;2)</Label>
                     <Input
                       type="number"
                       min={1}
                       max={10}
                       value={selectedClusterData.gridCols}
-                      onChange={(e) =>
-                        updateClusterMutation.mutate({
-                          id: selectedClusterData.id,
-                          gridCols: parseInt(e.target.value) || 2,
-                        })
-                      }
+                      onChange={(e) => {
+                        const newCols = parseInt(e.target.value) || 2;
+                        handleGridChange(selectedClusterData.id, newCols, selectedClusterData.gridRows);
+                      }}
                       data-testid="input-cluster-cols"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Rows</Label>
+                    <Label>Rows (max 2 if cols &gt;2)</Label>
                     <Input
                       type="number"
                       min={1}
                       max={10}
                       value={selectedClusterData.gridRows}
-                      onChange={(e) =>
-                        updateClusterMutation.mutate({
-                          id: selectedClusterData.id,
-                          gridRows: parseInt(e.target.value) || 2,
-                        })
-                      }
+                      onChange={(e) => {
+                        const newRows = parseInt(e.target.value) || 2;
+                        handleGridChange(selectedClusterData.id, selectedClusterData.gridCols, newRows);
+                      }}
                       data-testid="input-cluster-rows"
                     />
                   </div>
@@ -557,8 +782,7 @@ export function VisualFloorEditor() {
                       step={15}
                       value={selectedClusterData.rotation}
                       onChange={(e) =>
-                        updateClusterMutation.mutate({
-                          id: selectedClusterData.id,
+                        updateLocalCluster(selectedClusterData.id, {
                           rotation: parseInt(e.target.value) || 0,
                         })
                       }
@@ -575,8 +799,7 @@ export function VisualFloorEditor() {
                       type="number"
                       value={selectedClusterData.positionX}
                       onChange={(e) =>
-                        updateClusterMutation.mutate({
-                          id: selectedClusterData.id,
+                        updateLocalCluster(selectedClusterData.id, {
                           positionX: parseInt(e.target.value) || 0,
                         })
                       }
@@ -589,8 +812,7 @@ export function VisualFloorEditor() {
                       type="number"
                       value={selectedClusterData.positionY}
                       onChange={(e) =>
-                        updateClusterMutation.mutate({
-                          id: selectedClusterData.id,
+                        updateLocalCluster(selectedClusterData.id, {
                           positionY: parseInt(e.target.value) || 0,
                         })
                       }
@@ -600,26 +822,36 @@ export function VisualFloorEditor() {
                 </div>
 
                 <div className="pt-4 border-t">
-                  <Label className="mb-2 block">
-                    Seats ({selectedClusterSeats.length})
-                  </Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>
+                      Seats ({selectedClusterSeats.length}/{selectedClusterData.gridCols * selectedClusterData.gridRows})
+                    </Label>
+                    {selectedClusterSeats.length >= selectedClusterData.gridCols * selectedClusterData.gridRows && (
+                      <Badge variant="outline" className="text-amber-600">Full</Badge>
+                    )}
+                  </div>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {selectedClusterSeats.length > 0 ? (
                       selectedClusterSeats.map((seat) => (
                         <div
                           key={seat.id}
-                          className="flex items-center justify-between p-2 rounded-md bg-muted/50"
+                          className={`flex items-center justify-between p-2 rounded-md ${
+                            seat.isNew ? "bg-green-100 dark:bg-green-900/40" : "bg-muted/50"
+                          }`}
                         >
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">
                               {seat.name}
                             </span>
                             {seat.hasMonitor && <Monitor className="h-3 w-3" />}
+                            {seat.isNew && (
+                              <Badge variant="default" className="text-xs bg-green-600">New</Badge>
+                            )}
                           </div>
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => deleteSeatMutation.mutate(seat.id)}
+                            onClick={() => deleteLocalSeat(seat.id)}
                             data-testid={`button-delete-seat-${seat.name}`}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -648,8 +880,7 @@ export function VisualFloorEditor() {
           <DialogHeader>
             <DialogTitle>Create New Cluster</DialogTitle>
             <DialogDescription>
-              Add a new desk cluster to the floor plan. Drag it to position
-              after creation.
+              Add a new desk cluster to the floor plan. At least one dimension (columns or rows) must be 2 or less to ensure all seats are accessible.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -666,7 +897,7 @@ export function VisualFloorEditor() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Columns</Label>
+                <Label>Columns (1-10)</Label>
                 <Input
                   type="number"
                   min={1}
@@ -675,14 +906,14 @@ export function VisualFloorEditor() {
                   onChange={(e) =>
                     setNewCluster((prev) => ({
                       ...prev,
-                      gridCols: parseInt(e.target.value) || 2,
+                      gridCols: Math.min(10, Math.max(1, parseInt(e.target.value) || 2)),
                     }))
                   }
                   data-testid="input-new-cluster-cols"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Rows</Label>
+                <Label>Rows (1-10)</Label>
                 <Input
                   type="number"
                   min={1}
@@ -691,13 +922,19 @@ export function VisualFloorEditor() {
                   onChange={(e) =>
                     setNewCluster((prev) => ({
                       ...prev,
-                      gridRows: parseInt(e.target.value) || 2,
+                      gridRows: Math.min(10, Math.max(1, parseInt(e.target.value) || 2)),
                     }))
                   }
                   data-testid="input-new-cluster-rows"
                 />
               </div>
             </div>
+            {!validateGridDimensions(newCluster.gridCols, newCluster.gridRows) && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+                <AlertTriangle className="h-4 w-4" />
+                At least one dimension must be 2 or less for accessibility.
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -708,7 +945,7 @@ export function VisualFloorEditor() {
             </Button>
             <Button
               onClick={handleCreateCluster}
-              disabled={createClusterMutation.isPending}
+              disabled={!validateGridDimensions(newCluster.gridCols, newCluster.gridRows)}
               data-testid="button-confirm-create-cluster"
             >
               Create Cluster
@@ -722,7 +959,7 @@ export function VisualFloorEditor() {
           <DialogHeader>
             <DialogTitle>Add Seat to Cluster</DialogTitle>
             <DialogDescription>
-              Add a new seat to the selected cluster.
+              Add a new seat to the selected cluster. The seat will be placed in the next available position.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -768,7 +1005,7 @@ export function VisualFloorEditor() {
             </Button>
             <Button
               onClick={handleAddSeat}
-              disabled={!newSeat.name || createSeatMutation.isPending}
+              disabled={!newSeat.name}
               data-testid="button-confirm-add-seat-to-cluster"
             >
               Add Seat
@@ -776,6 +1013,22 @@ export function VisualFloorEditor() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showCapacityWarning} onOpenChange={setShowCapacityWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cluster is Full</AlertDialogTitle>
+            <AlertDialogDescription>
+              This cluster has reached its maximum capacity. To add more seats, first increase the cluster grid size (columns or rows), keeping in mind that at least one dimension must remain 2 or less for accessibility.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowCapacityWarning(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
