@@ -43,6 +43,8 @@ interface DragState {
   startY: number;
   offsetX: number;
   offsetY: number;
+  currentX: number;
+  currentY: number;
 }
 
 export function VisualFloorEditor() {
@@ -154,12 +156,17 @@ export function VisualFloorEditor() {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     
+    const scrollLeft = canvasRef.current?.scrollLeft || 0;
+    const scrollTop = canvasRef.current?.scrollTop || 0;
+    
     setDragState({
       clusterId,
       startX: cluster.positionX,
       startY: cluster.positionY,
-      offsetX: e.clientX - rect.left - cluster.positionX,
-      offsetY: e.clientY - rect.top - cluster.positionY,
+      offsetX: e.clientX - rect.left + scrollLeft - cluster.positionX,
+      offsetY: e.clientY - rect.top + scrollTop - cluster.positionY,
+      currentX: cluster.positionX,
+      currentY: cluster.positionY,
     });
     setSelectedCluster(clusterId);
   }, []);
@@ -168,18 +175,27 @@ export function VisualFloorEditor() {
     if (!dragState || !canvasRef.current) return;
     
     const rect = canvasRef.current.getBoundingClientRect();
-    const newX = Math.max(0, snapToGrid(e.clientX - rect.left - dragState.offsetX));
-    const newY = Math.max(0, snapToGrid(e.clientY - rect.top - dragState.offsetY));
+    const scrollLeft = canvasRef.current.scrollLeft || 0;
+    const scrollTop = canvasRef.current.scrollTop || 0;
     
-    const cluster = clusters.find(c => c.id === dragState.clusterId);
-    if (cluster && (newX !== cluster.positionX || newY !== cluster.positionY)) {
-      updateClusterMutation.mutate({ id: dragState.clusterId, positionX: newX, positionY: newY });
+    const newX = Math.max(0, snapToGrid(e.clientX - rect.left + scrollLeft - dragState.offsetX));
+    const newY = Math.max(0, snapToGrid(e.clientY - rect.top + scrollTop - dragState.offsetY));
+    
+    if (newX !== dragState.currentX || newY !== dragState.currentY) {
+      setDragState(prev => prev ? { ...prev, currentX: newX, currentY: newY } : null);
     }
-  }, [dragState, clusters, updateClusterMutation]);
+  }, [dragState]);
 
   const handleMouseUp = useCallback(() => {
+    if (dragState && (dragState.currentX !== dragState.startX || dragState.currentY !== dragState.startY)) {
+      updateClusterMutation.mutate({ 
+        id: dragState.clusterId, 
+        positionX: dragState.currentX, 
+        positionY: dragState.currentY 
+      });
+    }
     setDragState(null);
-  }, []);
+  }, [dragState, updateClusterMutation]);
 
   const handleRotate = (clusterId: string, currentRotation: number) => {
     const newRotation = (currentRotation + 90) % 360;
@@ -223,18 +239,21 @@ export function VisualFloorEditor() {
     const isSelected = selectedCluster === cluster.id;
     const isDragging = dragState?.clusterId === cluster.id;
     
+    const posX = isDragging ? dragState.currentX : cluster.positionX;
+    const posY = isDragging ? dragState.currentY : cluster.positionY;
+    
     const width = cluster.gridCols * CELL_SIZE + 16;
     const height = cluster.gridRows * CELL_SIZE + 16;
     
     return (
       <div
         key={cluster.id}
-        className={`absolute cursor-move transition-shadow ${
+        className={`absolute cursor-move ${
           isSelected ? "ring-2 ring-primary ring-offset-2" : ""
-        } ${isDragging ? "opacity-80 z-50" : ""}`}
+        } ${isDragging ? "opacity-90 z-50 shadow-lg" : ""}`}
         style={{
-          left: cluster.positionX,
-          top: cluster.positionY,
+          left: posX,
+          top: posY,
           width,
           minHeight: height,
           transform: `rotate(${cluster.rotation}deg)`,
@@ -263,7 +282,9 @@ export function VisualFloorEditor() {
             }}
           >
             {Array.from({ length: cluster.gridCols * cluster.gridRows }).map((_, idx) => {
-              const seat = clusterSeats.find(s => s.positionX + s.positionY * cluster.gridCols === idx);
+              const row = Math.floor(idx / cluster.gridCols);
+              const col = idx % cluster.gridCols;
+              const seat = clusterSeats.find(s => s.positionX === col && s.positionY === row);
               
               return (
                 <div
@@ -366,15 +387,13 @@ export function VisualFloorEditor() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Floor Plan Canvas</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-2">
             <div
               ref={canvasRef}
               className="relative bg-muted/20 rounded-lg border border-dashed border-border overflow-auto"
               style={{
-                minHeight: 600,
-                minWidth: 800,
-                backgroundImage: `radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)`,
-                backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+                height: "calc(100vh - 320px)",
+                minHeight: 500,
               }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -382,7 +401,17 @@ export function VisualFloorEditor() {
               onClick={() => setSelectedCluster(null)}
               data-testid="floor-plan-canvas"
             >
-              {clusters.map(renderCluster)}
+              <div 
+                className="relative"
+                style={{
+                  width: 1600,
+                  height: 1200,
+                  backgroundImage: `radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)`,
+                  backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+                }}
+              >
+                {clusters.map(renderCluster)}
+              </div>
             </div>
           </CardContent>
         </Card>
