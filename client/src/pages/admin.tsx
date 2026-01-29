@@ -10,6 +10,7 @@ import { DateSlotPicker } from "@/components/booking/date-slot-picker";
 import { SeatManagement } from "@/components/admin/seat-management";
 import { BookingManagement } from "@/components/admin/booking-management";
 import { FloorPlanEditor } from "@/components/admin/floor-plan-editor";
+import { VisualFloorEditor } from "@/components/admin/visual-floor-editor";
 import { UserManagement } from "@/components/admin/user-management";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Seat, Booking, TimeSlot } from "@shared/schema";
@@ -147,10 +148,11 @@ export default function AdminPortal() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-5">
+          <TabsList className="grid w-full max-w-3xl grid-cols-6">
             <TabsTrigger value="overview" data-testid="tab-overview">Floor Plan</TabsTrigger>
-            <TabsTrigger value="config" data-testid="tab-config">Configure</TabsTrigger>
-            <TabsTrigger value="seats" data-testid="tab-seats">Seats</TabsTrigger>
+            <TabsTrigger value="editor" data-testid="tab-editor">Layout Editor</TabsTrigger>
+            <TabsTrigger value="config" data-testid="tab-config">Seats</TabsTrigger>
+            <TabsTrigger value="seat-props" data-testid="tab-seat-props">Properties</TabsTrigger>
             <TabsTrigger value="bookings" data-testid="tab-bookings">Bookings</TabsTrigger>
             <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
           </TabsList>
@@ -176,6 +178,10 @@ export default function AdminPortal() {
             </div>
           </TabsContent>
 
+          <TabsContent value="editor">
+            <VisualFloorEditor />
+          </TabsContent>
+
           <TabsContent value="config">
             <FloorPlanEditor
               seats={seats}
@@ -183,7 +189,7 @@ export default function AdminPortal() {
             />
           </TabsContent>
 
-          <TabsContent value="seats">
+          <TabsContent value="seat-props">
             <SeatManagement
               seats={seats}
               onUpdateSeat={handleUpdateSeat}
