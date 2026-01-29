@@ -24,11 +24,10 @@ export default function Dashboard({ userRole }: DashboardProps) {
   const { user, logout } = useAuth();
   const { toast } = useToast();
   const today = startOfToday();
-  
+
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-  const [bulkMode, setBulkMode] = useState(false);
   const [bulkDates, setBulkDates] = useState<Date[]>([]);
   const [activeTab, setActiveTab] = useState("book");
   const [dateRangeMode, setDateRangeMode] = useState(true);
@@ -41,18 +40,26 @@ export default function Dashboard({ userRole }: DashboardProps) {
   });
 
   // Fetch all bookings
-  const { data: allBookings = [], isLoading: bookingsLoading } = useQuery<Booking[]>({
+  const { data: allBookings = [], isLoading: bookingsLoading } = useQuery<
+    Booking[]
+  >({
     queryKey: ["/api/bookings"],
   });
 
   // Fetch user's bookings
-  const { data: myBookings = [], isLoading: myBookingsLoading } = useQuery<Booking[]>({
+  const { data: myBookings = [], isLoading: myBookingsLoading } = useQuery<
+    Booking[]
+  >({
     queryKey: ["/api/bookings/my"],
   });
 
   // Create booking mutation
   const createBookingMutation = useMutation({
-    mutationFn: async (data: { seatIds: string[]; dates: string[]; slots: TimeSlot[] }) => {
+    mutationFn: async (data: {
+      seatIds: string[];
+      dates: string[];
+      slots: TimeSlot[];
+    }) => {
       return apiRequest("POST", "/api/bookings/bulk", data);
     },
     onSuccess: () => {
@@ -75,7 +82,9 @@ export default function Dashboard({ userRole }: DashboardProps) {
           description: "Please sign in again.",
           variant: "destructive",
         });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
         return;
       }
       toast({
@@ -106,7 +115,9 @@ export default function Dashboard({ userRole }: DashboardProps) {
           description: "Please sign in again.",
           variant: "destructive",
         });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
         return;
       }
       toast({
@@ -118,24 +129,24 @@ export default function Dashboard({ userRole }: DashboardProps) {
   });
 
   const handleSelectSeat = (seatId: string) => {
-    setSelectedSeats(prev => 
+    setSelectedSeats((prev) =>
       prev.includes(seatId)
-        ? prev.filter(id => id !== seatId)
-        : [...prev, seatId]
+        ? prev.filter((id) => id !== seatId)
+        : [...prev, seatId],
     );
   };
 
   const handleConfirmBooking = () => {
     let dates: string[];
-    
+
     if (dateRangeMode && startDate && endDate) {
       // Generate all weekdays between start and end date
       const allDays = eachDayOfInterval({ start: startDate, end: endDate });
       dates = allDays
-        .filter(d => !isWeekend(d))
-        .map(d => format(d, "yyyy-MM-dd"));
-    } else if (bulkMode && bulkDates.length > 0) {
-      dates = bulkDates.map(d => format(d, "yyyy-MM-dd"));
+        .filter((d) => !isWeekend(d))
+        .map((d) => format(d, "yyyy-MM-dd"));
+    } else if (bulkDates.length > 0) {
+      dates = bulkDates.map((d) => format(d, "yyyy-MM-dd"));
     } else {
       dates = [format(selectedDate, "yyyy-MM-dd")];
     }
@@ -147,9 +158,9 @@ export default function Dashboard({ userRole }: DashboardProps) {
     });
   };
 
-  const selectedSeatObjects = useMemo(() => 
-    seats.filter(s => selectedSeats.includes(s.id)),
-    [seats, selectedSeats]
+  const selectedSeatObjects = useMemo(
+    () => seats.filter((s) => selectedSeats.includes(s.id)),
+    [seats, selectedSeats],
   );
 
   return (
@@ -164,11 +175,21 @@ export default function Dashboard({ userRole }: DashboardProps) {
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-6"
+        >
           <TabsList className="grid w-full max-w-md grid-cols-3">
-            <TabsTrigger value="book" data-testid="tab-book">Book</TabsTrigger>
-            <TabsTrigger value="my-bookings" data-testid="tab-my-bookings">My Bookings</TabsTrigger>
-            <TabsTrigger value="whos-in" data-testid="tab-whos-in">Who's In</TabsTrigger>
+            <TabsTrigger value="book" data-testid="tab-book">
+              Book
+            </TabsTrigger>
+            <TabsTrigger value="my-bookings" data-testid="tab-my-bookings">
+              My Bookings
+            </TabsTrigger>
+            <TabsTrigger value="whos-in" data-testid="tab-whos-in">
+              Who's In
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="book" className="space-y-6">
@@ -187,7 +208,9 @@ export default function Dashboard({ userRole }: DashboardProps) {
                   }}
                   data-testid="switch-date-range-mode"
                 />
-                <Label htmlFor="date-range-mode" className="text-sm">Date Range Booking</Label>
+                <Label htmlFor="date-range-mode" className="text-sm">
+                  Date Range Booking
+                </Label>
               </div>
             </div>
 
@@ -225,10 +248,19 @@ export default function Dashboard({ userRole }: DashboardProps) {
                   selectedSeats={selectedSeatObjects}
                   selectedDate={startDate || selectedDate}
                   selectedSlots={selectedSlots}
-                  bulkDates={dateRangeMode && startDate && endDate 
-                    ? eachDayOfInterval({ start: startDate, end: endDate }).filter(d => !isWeekend(d))
-                    : bulkMode ? bulkDates : []}
-                  onRemoveSeat={(seatId) => setSelectedSeats(prev => prev.filter(id => id !== seatId))}
+                  bulkDates={
+                    dateRangeMode && startDate && endDate
+                      ? eachDayOfInterval({
+                          start: startDate,
+                          end: endDate,
+                        }).filter((d) => !isWeekend(d))
+                      : []
+                  }
+                  onRemoveSeat={(seatId) =>
+                    setSelectedSeats((prev) =>
+                      prev.filter((id) => id !== seatId),
+                    )
+                  }
                   onConfirmBooking={handleConfirmBooking}
                   onClearAll={() => {
                     setSelectedSeats([]);

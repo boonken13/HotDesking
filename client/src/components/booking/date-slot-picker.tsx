@@ -1,11 +1,23 @@
 import { useState, useEffect } from "react";
-import { format, addDays, startOfWeek, isWeekend, isBefore, startOfToday, eachDayOfInterval, isAfter } from "date-fns";
+import {
+  format,
+  addDays,
+  startOfWeek,
+  isWeekend,
+  isBefore,
+  startOfToday,
+  eachDayOfInterval,
+} from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Sun, Moon, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { CalendarIcon, Sun, Moon, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TimeSlot } from "@shared/schema";
 
@@ -45,7 +57,7 @@ export function DateSlotPicker({
 
   const toggleSlot = (slot: TimeSlot) => {
     if (selectedSlots.includes(slot)) {
-      onSlotsChange(selectedSlots.filter(s => s !== slot));
+      onSlotsChange(selectedSlots.filter((s) => s !== slot));
     } else {
       onSlotsChange([...selectedSlots, slot]);
     }
@@ -55,23 +67,14 @@ export function DateSlotPicker({
     onSlotsChange(["AM", "PM"]);
   };
 
-  const goToPreviousDay = () => {
-    const newDate = addDays(selectedDate, -1);
-    if (!isBefore(newDate, today)) {
-      onDateChange(newDate);
-    }
-  };
-
-  const goToNextDay = () => {
-    onDateChange(addDays(selectedDate, 1));
-  };
-
   const handleBulkDateSelect = (date: Date | undefined) => {
     if (!date || !onBulkDatesChange) return;
-    
+
     const dateStr = format(date, "yyyy-MM-dd");
-    const existingIndex = bulkDates.findIndex(d => format(d, "yyyy-MM-dd") === dateStr);
-    
+    const existingIndex = bulkDates.findIndex(
+      (d) => format(d, "yyyy-MM-dd") === dateStr,
+    );
+
     if (existingIndex >= 0) {
       onBulkDatesChange(bulkDates.filter((_, i) => i !== existingIndex));
     } else {
@@ -105,7 +108,9 @@ export function DateSlotPicker({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-medium">Select Date & Time Slot</CardTitle>
+        <CardTitle className="text-base font-medium">
+          Select Date & Time Slot
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Date Range Selection */}
@@ -115,11 +120,14 @@ export function DateSlotPicker({
               <CalendarRange className="h-4 w-4" />
               Date Range
             </label>
-            
+
             {/* From Date */}
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">From</label>
-              <Popover open={startCalendarOpen} onOpenChange={setStartCalendarOpen}>
+              <Popover
+                open={startCalendarOpen}
+                onOpenChange={setStartCalendarOpen}
+              >
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -127,7 +135,9 @@ export function DateSlotPicker({
                     data-testid="button-start-date"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "EEEE, MMM d, yyyy") : "Select start date"}
+                    {startDate
+                      ? format(startDate, "EEEE, MMM d, yyyy")
+                      : "Select start date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -143,7 +153,9 @@ export function DateSlotPicker({
                         setStartCalendarOpen(false);
                       }
                     }}
-                    disabled={(date) => isBefore(date, today) || isWeekend(date)}
+                    disabled={(date) =>
+                      isBefore(date, today) || isWeekend(date)
+                    }
                     initialFocus
                   />
                 </PopoverContent>
@@ -162,7 +174,9 @@ export function DateSlotPicker({
                     disabled={!startDate}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "EEEE, MMM d, yyyy") : "Select end date"}
+                    {endDate
+                      ? format(endDate, "EEEE, MMM d, yyyy")
+                      : "Select end date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -175,9 +189,9 @@ export function DateSlotPicker({
                         setEndCalendarOpen(false);
                       }
                     }}
-                    disabled={(date) => 
-                      isBefore(date, today) || 
-                      isWeekend(date) || 
+                    disabled={(date) =>
+                      isBefore(date, today) ||
+                      isWeekend(date) ||
                       (startDate ? isBefore(date, startDate) : false)
                     }
                     initialFocus
@@ -191,9 +205,11 @@ export function DateSlotPicker({
               <div className="rounded-lg bg-muted/50 p-2 text-xs">
                 <span className="font-medium">
                   {(() => {
-                    const days = eachDayOfInterval({ start: startDate, end: endDate })
-                      .filter(d => !isWeekend(d));
-                    return `${days.length} weekday${days.length === 1 ? '' : 's'} selected`;
+                    const days = eachDayOfInterval({
+                      start: startDate,
+                      end: endDate,
+                    }).filter((d) => !isWeekend(d));
+                    return `${days.length} weekday${days.length === 1 ? "" : "s"} selected`;
                   })()}
                 </span>
               </div>
@@ -202,18 +218,10 @@ export function DateSlotPicker({
         ) : (
           /* Single Date Selection */
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Date</label>
+            <label className="text-sm font-medium text-muted-foreground">
+              Date
+            </label>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goToPreviousDay}
-                disabled={isBefore(addDays(selectedDate, -1), today)}
-                data-testid="button-prev-day"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              
               <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -235,84 +243,48 @@ export function DateSlotPicker({
                         setCalendarOpen(false);
                       }
                     }}
-                    disabled={(date) => isBefore(date, today) || isWeekend(date)}
+                    disabled={(date) =>
+                      isBefore(date, today) || isWeekend(date)
+                    }
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
-              
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goToNextDay}
-                data-testid="button-next-day"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Bulk Date Selection (legacy multi-select mode) */}
-        {bulkMode && !dateRangeMode && onBulkDatesChange && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Bulk Dates</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              <Button variant="outline" size="sm" onClick={quickSelectThisWeek} data-testid="button-this-week">
-                This Week
-              </Button>
-              <Button variant="outline" size="sm" onClick={quickSelectNextWeek} data-testid="button-next-week">
-                Next Week
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => onBulkDatesChange([])} data-testid="button-clear-dates">
-                Clear
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {bulkDates.map(date => (
-                <Badge
-                  key={format(date, "yyyy-MM-dd")}
-                  variant="secondary"
-                  className="cursor-pointer"
-                  onClick={() => handleBulkDateSelect(date)}
-                >
-                  {format(date, "MMM d")} ×
-                </Badge>
-              ))}
-              {bulkDates.length === 0 && (
-                <span className="text-sm text-muted-foreground">No dates selected</span>
-              )}
             </div>
           </div>
         )}
 
         {/* Time Slot Selection */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Time Slot</label>
+          <label className="text-sm font-medium text-muted-foreground">
+            Time Slot
+          </label>
           <div className="flex gap-2">
             <Button
               variant={selectedSlots.includes("AM") ? "default" : "outline"}
               className={cn(
                 "flex-1 gap-2",
-                selectedSlots.includes("AM") && "bg-amber-500 hover:bg-amber-600 border-amber-600"
+                selectedSlots.includes("AM") &&
+                  "bg-amber-500 hover:bg-amber-600 border-amber-600",
               )}
               onClick={() => toggleSlot("AM")}
               data-testid="button-slot-am"
             >
               <Sun className="h-4 w-4" />
-              Morning (AM)
+              AM
             </Button>
             <Button
               variant={selectedSlots.includes("PM") ? "default" : "outline"}
               className={cn(
                 "flex-1 gap-2",
-                selectedSlots.includes("PM") && "bg-violet-500 hover:bg-violet-600 border-violet-600"
+                selectedSlots.includes("PM") &&
+                  "bg-violet-500 hover:bg-violet-600 border-violet-600",
               )}
               onClick={() => toggleSlot("PM")}
               data-testid="button-slot-pm"
             >
               <Moon className="h-4 w-4" />
-              Afternoon (PM)
+              PM
             </Button>
           </div>
           <Button
@@ -334,8 +306,8 @@ export function DateSlotPicker({
               {dateRangeMode && startDate && endDate
                 ? `${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")}`
                 : bulkMode && bulkDates.length > 0
-                ? `${bulkDates.length} date(s)`
-                : format(selectedDate, "MMM d, yyyy")}
+                  ? `${bulkDates.length} date(s)`
+                  : format(selectedDate, "MMM d, yyyy")}
               {" • "}
               {selectedSlots.join(" & ")}
             </p>
