@@ -23,15 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Plus, 
-  RotateCw, 
-  Trash2, 
-  GripVertical, 
+import {
+  Plus,
+  RotateCw,
+  Trash2,
+  GripVertical,
   Monitor,
   Move,
   Grid3X3,
-  Square
+  Square,
 } from "lucide-react";
 
 const GRID_SIZE = 20;
@@ -50,25 +50,27 @@ interface DragState {
 export function VisualFloorEditor() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLDivElement>(null);
-  
+
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [showCreateCluster, setShowCreateCluster] = useState(false);
   const [showAddSeat, setShowAddSeat] = useState(false);
-  
+
   const [newCluster, setNewCluster] = useState({
     label: "",
     gridCols: 2,
     gridRows: 2,
   });
-  
+
   const [newSeat, setNewSeat] = useState({
     name: "",
     type: "team_cluster" as "solo" | "team_cluster",
     hasMonitor: true,
   });
 
-  const { data: clusters = [], isLoading: clustersLoading } = useQuery<Cluster[]>({
+  const { data: clusters = [], isLoading: clustersLoading } = useQuery<
+    Cluster[]
+  >({
     queryKey: ["/api/clusters"],
   });
 
@@ -77,7 +79,10 @@ export function VisualFloorEditor() {
   });
 
   const updateClusterMutation = useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string } & Partial<Cluster>) => {
+    mutationFn: async ({
+      id,
+      ...updates
+    }: { id: string } & Partial<Cluster>) => {
       return apiRequest("PATCH", `/api/clusters/${id}`, updates);
     },
     onSuccess: () => {
@@ -86,7 +91,14 @@ export function VisualFloorEditor() {
   });
 
   const createClusterMutation = useMutation({
-    mutationFn: async (data: { id: string; label?: string; positionX: number; positionY: number; gridCols: number; gridRows: number }) => {
+    mutationFn: async (data: {
+      id: string;
+      label?: string;
+      positionX: number;
+      positionY: number;
+      gridCols: number;
+      gridRows: number;
+    }) => {
       return apiRequest("POST", "/api/clusters", data);
     },
     onSuccess: () => {
@@ -96,7 +108,11 @@ export function VisualFloorEditor() {
       toast({ title: "Cluster created" });
     },
     onError: (err: Error) => {
-      toast({ title: "Error creating cluster", description: err.message, variant: "destructive" });
+      toast({
+        title: "Error creating cluster",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -113,7 +129,15 @@ export function VisualFloorEditor() {
   });
 
   const createSeatMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string; type: "solo" | "team_cluster"; hasMonitor: boolean; clusterGroup: string; positionX: number; positionY: number }) => {
+    mutationFn: async (data: {
+      id: string;
+      name: string;
+      type: "solo" | "team_cluster";
+      hasMonitor: boolean;
+      clusterGroup: string;
+      positionX: number;
+      positionY: number;
+    }) => {
       return apiRequest("POST", "/api/seats", data);
     },
     onSuccess: () => {
@@ -123,7 +147,11 @@ export function VisualFloorEditor() {
       toast({ title: "Seat added" });
     },
     onError: (err: Error) => {
-      toast({ title: "Error adding seat", description: err.message, variant: "destructive" });
+      toast({
+        title: "Error adding seat",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -139,7 +167,7 @@ export function VisualFloorEditor() {
 
   const seatsByCluster = useMemo(() => {
     const map = new Map<string, Seat[]>();
-    seats.forEach(seat => {
+    seats.forEach((seat) => {
       const clusterId = seat.clusterGroup || "unassigned";
       const existing = map.get(clusterId) || [];
       existing.push(seat);
@@ -148,50 +176,69 @@ export function VisualFloorEditor() {
     return map;
   }, [seats]);
 
-  const snapToGrid = (value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE;
+  const snapToGrid = (value: number) =>
+    Math.round(value / GRID_SIZE) * GRID_SIZE;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, clusterId: string, cluster: Cluster) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const scrollLeft = canvasRef.current?.scrollLeft || 0;
-    const scrollTop = canvasRef.current?.scrollTop || 0;
-    
-    setDragState({
-      clusterId,
-      startX: cluster.positionX,
-      startY: cluster.positionY,
-      offsetX: e.clientX - rect.left + scrollLeft - cluster.positionX,
-      offsetY: e.clientY - rect.top + scrollTop - cluster.positionY,
-      currentX: cluster.positionX,
-      currentY: cluster.positionY,
-    });
-    setSelectedCluster(clusterId);
-  }, []);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent, clusterId: string, cluster: Cluster) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragState || !canvasRef.current) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scrollLeft = canvasRef.current.scrollLeft || 0;
-    const scrollTop = canvasRef.current.scrollTop || 0;
-    
-    const newX = Math.max(0, snapToGrid(e.clientX - rect.left + scrollLeft - dragState.offsetX));
-    const newY = Math.max(0, snapToGrid(e.clientY - rect.top + scrollTop - dragState.offsetY));
-    
-    if (newX !== dragState.currentX || newY !== dragState.currentY) {
-      setDragState(prev => prev ? { ...prev, currentX: newX, currentY: newY } : null);
-    }
-  }, [dragState]);
+      const scrollLeft = canvasRef.current?.scrollLeft || 0;
+      const scrollTop = canvasRef.current?.scrollTop || 0;
+
+      setDragState({
+        clusterId,
+        startX: cluster.positionX,
+        startY: cluster.positionY,
+        offsetX: e.clientX - rect.left + scrollLeft - cluster.positionX,
+        offsetY: e.clientY - rect.top + scrollTop - cluster.positionY,
+        currentX: cluster.positionX,
+        currentY: cluster.positionY,
+      });
+      setSelectedCluster(clusterId);
+    },
+    [],
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!dragState || !canvasRef.current) return;
+
+      const rect = canvasRef.current.getBoundingClientRect();
+      const scrollLeft = canvasRef.current.scrollLeft || 0;
+      const scrollTop = canvasRef.current.scrollTop || 0;
+
+      const newX = Math.max(
+        0,
+        snapToGrid(e.clientX - rect.left + scrollLeft - dragState.offsetX),
+      );
+      const newY = Math.max(
+        0,
+        snapToGrid(e.clientY - rect.top + scrollTop - dragState.offsetY),
+      );
+
+      if (newX !== dragState.currentX || newY !== dragState.currentY) {
+        setDragState((prev) =>
+          prev ? { ...prev, currentX: newX, currentY: newY } : null,
+        );
+      }
+    },
+    [dragState],
+  );
 
   const handleMouseUp = useCallback(() => {
-    if (dragState && (dragState.currentX !== dragState.startX || dragState.currentY !== dragState.startY)) {
-      updateClusterMutation.mutate({ 
-        id: dragState.clusterId, 
-        positionX: dragState.currentX, 
-        positionY: dragState.currentY 
+    if (
+      dragState &&
+      (dragState.currentX !== dragState.startX ||
+        dragState.currentY !== dragState.startY)
+    ) {
+      updateClusterMutation.mutate({
+        id: dragState.clusterId,
+        positionX: dragState.currentX,
+        positionY: dragState.currentY,
       });
     }
     setDragState(null);
@@ -216,13 +263,13 @@ export function VisualFloorEditor() {
 
   const handleAddSeat = () => {
     if (!selectedCluster || !newSeat.name) return;
-    
+
     const clusterSeats = seatsByCluster.get(selectedCluster) || [];
-    const cluster = clusters.find(c => c.id === selectedCluster);
+    const cluster = clusters.find((c) => c.id === selectedCluster);
     const nextPosition = clusterSeats.length;
     const posX = nextPosition % (cluster?.gridCols || 2);
     const posY = Math.floor(nextPosition / (cluster?.gridCols || 2));
-    
+
     createSeatMutation.mutate({
       id: `seat-${newSeat.name.toLowerCase()}`,
       name: newSeat.name,
@@ -238,13 +285,13 @@ export function VisualFloorEditor() {
     const clusterSeats = seatsByCluster.get(cluster.id) || [];
     const isSelected = selectedCluster === cluster.id;
     const isDragging = dragState?.clusterId === cluster.id;
-    
+
     const posX = isDragging ? dragState.currentX : cluster.positionX;
     const posY = isDragging ? dragState.currentY : cluster.positionY;
-    
+
     const width = cluster.gridCols * CELL_SIZE + 16;
     const height = cluster.gridRows * CELL_SIZE + 16;
-    
+
     return (
       <div
         key={cluster.id}
@@ -260,76 +307,91 @@ export function VisualFloorEditor() {
           transformOrigin: "center center",
         }}
         onMouseDown={(e) => handleMouseDown(e, cluster.id, cluster)}
-        onClick={(e) => { e.stopPropagation(); setSelectedCluster(cluster.id); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedCluster(cluster.id);
+        }}
         data-testid={`cluster-${cluster.id}`}
       >
         <div className="bg-muted/50 rounded-lg border border-border p-2 h-full relative">
           <div className="absolute -top-3 left-2 flex items-center gap-1">
             {cluster.label && (
-              <Badge variant="secondary" className="text-xs">{cluster.label}</Badge>
+              <Badge variant="secondary" className="text-xs">
+                {cluster.label}
+              </Badge>
             )}
-            <Badge variant="outline" className="text-xs">{cluster.gridCols}x{cluster.gridRows}</Badge>
+            <Badge variant="outline" className="text-xs">
+              {cluster.gridCols}x{cluster.gridRows}
+            </Badge>
           </div>
-          
+
           <div className="absolute -top-3 right-2">
             <GripVertical className="h-4 w-4 text-muted-foreground" />
           </div>
-          
+
           <div
             className="grid gap-1 pt-2"
             style={{
               gridTemplateColumns: `repeat(${cluster.gridCols}, minmax(0, 1fr))`,
             }}
           >
-            {Array.from({ length: cluster.gridCols * cluster.gridRows }).map((_, idx) => {
-              const row = Math.floor(idx / cluster.gridCols);
-              const col = idx % cluster.gridCols;
-              const seat = clusterSeats.find(s => s.positionX === col && s.positionY === row);
-              
-              return (
-                <div
-                  key={idx}
-                  className={`flex items-center justify-center rounded-md text-xs font-medium ${
-                    seat
-                      ? seat.isLongTermReserved
-                        ? "bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-200 border border-orange-300"
-                        : seat.isBlocked
-                        ? "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-400"
-                        : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-400"
-                      : "bg-muted/30 border border-dashed border-muted-foreground/30"
-                  }`}
-                  style={{ 
-                    width: CELL_SIZE - 4, 
-                    height: CELL_SIZE - 4,
-                    transform: `rotate(${-cluster.rotation}deg)`,
-                  }}
-                >
-                  {seat ? (
-                    <div className="flex items-center gap-1">
-                      <span>{seat.name}</span>
-                      {seat.hasMonitor && <Monitor className="h-3 w-3" />}
-                    </div>
-                  ) : (
-                    <Plus className="h-3 w-3 text-muted-foreground" />
-                  )}
-                </div>
-              );
-            })}
+            {Array.from({ length: cluster.gridCols * cluster.gridRows }).map(
+              (_, idx) => {
+                const row = Math.floor(idx / cluster.gridCols);
+                const col = idx % cluster.gridCols;
+                const seat = clusterSeats.find(
+                  (s) => s.positionX === col && s.positionY === row,
+                );
+
+                return (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-center rounded-md text-xs font-medium ${
+                      seat
+                        ? seat.isLongTermReserved
+                          ? "bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-200 border border-orange-300"
+                          : seat.isBlocked
+                            ? "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-400"
+                            : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-400"
+                        : "bg-muted/30 border border-dashed border-muted-foreground/30"
+                    }`}
+                    style={{
+                      width: CELL_SIZE - 4,
+                      height: CELL_SIZE - 4,
+                      transform: `rotate(${-cluster.rotation}deg)`,
+                    }}
+                  >
+                    {seat ? (
+                      <div className="flex items-center gap-1">
+                        <span>{seat.name}</span>
+                        {seat.hasMonitor && <Monitor className="h-3 w-3" />}
+                      </div>
+                    ) : (
+                      <Plus className="h-3 w-3 text-muted-foreground" />
+                    )}
+                  </div>
+                );
+              },
+            )}
           </div>
         </div>
       </div>
     );
   };
 
-  const selectedClusterData = clusters.find(c => c.id === selectedCluster);
-  const selectedClusterSeats = selectedCluster ? seatsByCluster.get(selectedCluster) || [] : [];
+  const selectedClusterData = clusters.find((c) => c.id === selectedCluster);
+  const selectedClusterSeats = selectedCluster
+    ? seatsByCluster.get(selectedCluster) || []
+    : [];
 
   if (clustersLoading || seatsLoading) {
     return (
       <Card>
         <CardContent className="p-8">
           <div className="flex items-center justify-center h-48">
-            <div className="animate-pulse text-muted-foreground">Loading floor plan editor...</div>
+            <div className="animate-pulse text-muted-foreground">
+              Loading floor plan editor...
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -359,7 +421,12 @@ export function VisualFloorEditor() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => handleRotate(selectedCluster, selectedClusterData?.rotation || 0)}
+                onClick={() =>
+                  handleRotate(
+                    selectedCluster,
+                    selectedClusterData?.rotation || 0,
+                  )
+                }
                 data-testid="button-rotate-cluster"
               >
                 <RotateCw className="h-4 w-4 mr-2" />
@@ -401,7 +468,7 @@ export function VisualFloorEditor() {
               onClick={() => setSelectedCluster(null)}
               data-testid="floor-plan-canvas"
             >
-              <div 
+              <div
                 className="relative"
                 style={{
                   width: 1600,
@@ -425,22 +492,26 @@ export function VisualFloorEditor() {
               <>
                 <div className="space-y-2">
                   <Label>Cluster ID</Label>
-                  <p className="text-sm text-muted-foreground">{selectedClusterData.id}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedClusterData.id}
+                  </p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Label</Label>
                   <Input
                     value={selectedClusterData.label || ""}
-                    onChange={(e) => updateClusterMutation.mutate({ 
-                      id: selectedClusterData.id, 
-                      label: e.target.value || null 
-                    })}
+                    onChange={(e) =>
+                      updateClusterMutation.mutate({
+                        id: selectedClusterData.id,
+                        label: e.target.value || null,
+                      })
+                    }
                     placeholder="Cluster label"
                     data-testid="input-cluster-label"
                   />
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
                     <Label>Columns</Label>
@@ -449,10 +520,12 @@ export function VisualFloorEditor() {
                       min={1}
                       max={10}
                       value={selectedClusterData.gridCols}
-                      onChange={(e) => updateClusterMutation.mutate({ 
-                        id: selectedClusterData.id, 
-                        gridCols: parseInt(e.target.value) || 2 
-                      })}
+                      onChange={(e) =>
+                        updateClusterMutation.mutate({
+                          id: selectedClusterData.id,
+                          gridCols: parseInt(e.target.value) || 2,
+                        })
+                      }
                       data-testid="input-cluster-cols"
                     />
                   </div>
@@ -463,15 +536,17 @@ export function VisualFloorEditor() {
                       min={1}
                       max={10}
                       value={selectedClusterData.gridRows}
-                      onChange={(e) => updateClusterMutation.mutate({ 
-                        id: selectedClusterData.id, 
-                        gridRows: parseInt(e.target.value) || 2 
-                      })}
+                      onChange={(e) =>
+                        updateClusterMutation.mutate({
+                          id: selectedClusterData.id,
+                          gridRows: parseInt(e.target.value) || 2,
+                        })
+                      }
                       data-testid="input-cluster-rows"
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Rotation</Label>
                   <div className="flex items-center gap-2">
@@ -481,10 +556,12 @@ export function VisualFloorEditor() {
                       max={360}
                       step={15}
                       value={selectedClusterData.rotation}
-                      onChange={(e) => updateClusterMutation.mutate({ 
-                        id: selectedClusterData.id, 
-                        rotation: parseInt(e.target.value) || 0 
-                      })}
+                      onChange={(e) =>
+                        updateClusterMutation.mutate({
+                          id: selectedClusterData.id,
+                          rotation: parseInt(e.target.value) || 0,
+                        })
+                      }
                       data-testid="input-cluster-rotation"
                     />
                     <span className="text-sm text-muted-foreground">deg</span>
@@ -497,10 +574,12 @@ export function VisualFloorEditor() {
                     <Input
                       type="number"
                       value={selectedClusterData.positionX}
-                      onChange={(e) => updateClusterMutation.mutate({ 
-                        id: selectedClusterData.id, 
-                        positionX: parseInt(e.target.value) || 0 
-                      })}
+                      onChange={(e) =>
+                        updateClusterMutation.mutate({
+                          id: selectedClusterData.id,
+                          positionX: parseInt(e.target.value) || 0,
+                        })
+                      }
                       data-testid="input-cluster-x"
                     />
                   </div>
@@ -509,26 +588,32 @@ export function VisualFloorEditor() {
                     <Input
                       type="number"
                       value={selectedClusterData.positionY}
-                      onChange={(e) => updateClusterMutation.mutate({ 
-                        id: selectedClusterData.id, 
-                        positionY: parseInt(e.target.value) || 0 
-                      })}
+                      onChange={(e) =>
+                        updateClusterMutation.mutate({
+                          id: selectedClusterData.id,
+                          positionY: parseInt(e.target.value) || 0,
+                        })
+                      }
                       data-testid="input-cluster-y"
                     />
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t">
-                  <Label className="mb-2 block">Seats ({selectedClusterSeats.length})</Label>
+                  <Label className="mb-2 block">
+                    Seats ({selectedClusterSeats.length})
+                  </Label>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {selectedClusterSeats.length > 0 ? (
-                      selectedClusterSeats.map(seat => (
-                        <div 
-                          key={seat.id} 
+                      selectedClusterSeats.map((seat) => (
+                        <div
+                          key={seat.id}
                           className="flex items-center justify-between p-2 rounded-md bg-muted/50"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{seat.name}</span>
+                            <span className="font-medium text-sm">
+                              {seat.name}
+                            </span>
                             {seat.hasMonitor && <Monitor className="h-3 w-3" />}
                           </div>
                           <Button
@@ -542,7 +627,9 @@ export function VisualFloorEditor() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-muted-foreground">No seats in this cluster</p>
+                      <p className="text-sm text-muted-foreground">
+                        No seats in this cluster
+                      </p>
                     )}
                   </div>
                 </div>
@@ -561,7 +648,8 @@ export function VisualFloorEditor() {
           <DialogHeader>
             <DialogTitle>Create New Cluster</DialogTitle>
             <DialogDescription>
-              Add a new desk cluster to the floor plan. Drag it to position after creation.
+              Add a new desk cluster to the floor plan. Drag it to position
+              after creation.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -569,7 +657,9 @@ export function VisualFloorEditor() {
               <Label>Label (optional)</Label>
               <Input
                 value={newCluster.label}
-                onChange={(e) => setNewCluster(prev => ({ ...prev, label: e.target.value }))}
+                onChange={(e) =>
+                  setNewCluster((prev) => ({ ...prev, label: e.target.value }))
+                }
                 placeholder="e.g., Solo Desks, Team Area"
                 data-testid="input-new-cluster-label"
               />
@@ -582,7 +672,12 @@ export function VisualFloorEditor() {
                   min={1}
                   max={10}
                   value={newCluster.gridCols}
-                  onChange={(e) => setNewCluster(prev => ({ ...prev, gridCols: parseInt(e.target.value) || 2 }))}
+                  onChange={(e) =>
+                    setNewCluster((prev) => ({
+                      ...prev,
+                      gridCols: parseInt(e.target.value) || 2,
+                    }))
+                  }
                   data-testid="input-new-cluster-cols"
                 />
               </div>
@@ -593,17 +688,25 @@ export function VisualFloorEditor() {
                   min={1}
                   max={10}
                   value={newCluster.gridRows}
-                  onChange={(e) => setNewCluster(prev => ({ ...prev, gridRows: parseInt(e.target.value) || 2 }))}
+                  onChange={(e) =>
+                    setNewCluster((prev) => ({
+                      ...prev,
+                      gridRows: parseInt(e.target.value) || 2,
+                    }))
+                  }
                   data-testid="input-new-cluster-rows"
                 />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateCluster(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateCluster(false)}
+            >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleCreateCluster}
               disabled={createClusterMutation.isPending}
               data-testid="button-confirm-create-cluster"
@@ -627,7 +730,12 @@ export function VisualFloorEditor() {
               <Label>Seat Name</Label>
               <Input
                 value={newSeat.name}
-                onChange={(e) => setNewSeat(prev => ({ ...prev, name: e.target.value.toUpperCase() }))}
+                onChange={(e) =>
+                  setNewSeat((prev) => ({
+                    ...prev,
+                    name: e.target.value.toUpperCase(),
+                  }))
+                }
                 placeholder="e.g., T81, S5"
                 data-testid="input-new-seat-name"
               />
@@ -636,11 +744,11 @@ export function VisualFloorEditor() {
               <Label>Type</Label>
               <Select
                 value={newSeat.type}
-                onValueChange={(value: "solo" | "team_cluster") => 
-                  setNewSeat(prev => ({ 
-                    ...prev, 
-                    type: value, 
-                    hasMonitor: value === "team_cluster" 
+                onValueChange={(value: "solo" | "team_cluster") =>
+                  setNewSeat((prev) => ({
+                    ...prev,
+                    type: value,
+                    hasMonitor: value === "team_cluster",
                   }))
                 }
               >
@@ -658,7 +766,7 @@ export function VisualFloorEditor() {
             <Button variant="outline" onClick={() => setShowAddSeat(false)}>
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleAddSeat}
               disabled={!newSeat.name || createSeatMutation.isPending}
               data-testid="button-confirm-add-seat-to-cluster"
