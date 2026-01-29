@@ -1,7 +1,7 @@
 import { 
-  users, seats, bookings, userRoles,
+  users, seats, bookings, userRoles, clusters,
   type User, type Seat, type InsertSeat, type Booking, type InsertBooking, 
-  type UserRole, type InsertUserRole
+  type UserRole, type InsertUserRole, type Cluster, type InsertCluster
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, isNull, sql } from "drizzle-orm";
@@ -17,6 +17,13 @@ export interface IStorage {
   setUserRole(data: InsertUserRole): Promise<UserRole>;
   updateUserRole(userId: string, updates: { role?: "employee" | "admin"; isActive?: boolean }): Promise<UserRole | undefined>;
   deleteUserRole(userId: string): Promise<boolean>;
+  
+  // Cluster operations
+  getAllClusters(): Promise<Cluster[]>;
+  getCluster(id: string): Promise<Cluster | undefined>;
+  createCluster(cluster: InsertCluster): Promise<Cluster>;
+  updateCluster(id: string, updates: Partial<InsertCluster>): Promise<Cluster | undefined>;
+  deleteCluster(id: string): Promise<boolean>;
   
   // Seat operations
   getAllSeats(): Promise<Seat[]>;
@@ -83,6 +90,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUserRole(userId: string): Promise<boolean> {
     await db.delete(userRoles).where(eq(userRoles.userId, userId));
+    return true;
+  }
+
+  // Cluster operations
+  async getAllClusters(): Promise<Cluster[]> {
+    return db.select().from(clusters).orderBy(clusters.id);
+  }
+
+  async getCluster(id: string): Promise<Cluster | undefined> {
+    const [cluster] = await db.select().from(clusters).where(eq(clusters.id, id));
+    return cluster;
+  }
+
+  async createCluster(cluster: InsertCluster): Promise<Cluster> {
+    const [created] = await db.insert(clusters).values(cluster).returning();
+    return created;
+  }
+
+  async updateCluster(id: string, updates: Partial<InsertCluster>): Promise<Cluster | undefined> {
+    const [updated] = await db
+      .update(clusters)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(clusters.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCluster(id: string): Promise<boolean> {
+    await db.delete(clusters).where(eq(clusters.id, id));
     return true;
   }
 

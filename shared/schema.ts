@@ -14,6 +14,23 @@ export const seatTypeEnum = pgEnum("seat_type", ["solo", "team_cluster"]);
 export const timeSlotEnum = pgEnum("time_slot", ["AM", "PM"]);
 export const userRoleEnum = pgEnum("user_role", ["employee", "admin"]);
 
+// Clusters Table - stores cluster/group layout configuration
+export const clusters = pgTable("clusters", {
+  id: varchar("id").primaryKey(),
+  label: varchar("label", { length: 50 }),
+  positionX: integer("position_x").notNull().default(0),
+  positionY: integer("position_y").notNull().default(0),
+  rotation: integer("rotation").notNull().default(0),
+  gridCols: integer("grid_cols").notNull().default(2),
+  gridRows: integer("grid_rows").notNull().default(2),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const clustersRelations = relations(clusters, ({ many }) => ({
+  seats: many(seats),
+}));
+
 // User Roles Table (extends auth users)
 export const userRoles = pgTable("user_roles", {
   userId: varchar("user_id").primaryKey(),
@@ -47,8 +64,12 @@ export const seats = pgTable("seats", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const seatsRelations = relations(seats, ({ many }) => ({
+export const seatsRelations = relations(seats, ({ one, many }) => ({
   bookings: many(bookings),
+  cluster: one(clusters, {
+    fields: [seats.clusterGroup],
+    references: [clusters.id],
+  }),
 }));
 
 // Bookings Table
@@ -133,6 +154,31 @@ export const longTermReservationSchema = z.object({
   longTermReservedBy: z.string().nullable().optional(),
 });
 
+// Cluster schemas
+export const insertClusterSchema = createInsertSchema(clusters).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateClusterSchema = z.object({
+  label: z.string().max(50).nullable().optional(),
+  positionX: z.number().optional(),
+  positionY: z.number().optional(),
+  rotation: z.number().min(0).max(360).optional(),
+  gridCols: z.number().min(1).max(10).optional(),
+  gridRows: z.number().min(1).max(10).optional(),
+});
+
+export const createClusterSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().max(50).nullable().optional(),
+  positionX: z.number().default(0),
+  positionY: z.number().default(0),
+  rotation: z.number().min(0).max(360).default(0),
+  gridCols: z.number().min(1).max(10).default(2),
+  gridRows: z.number().min(1).max(10).default(2),
+});
+
 // Types
 export type Seat = typeof seats.$inferSelect;
 export type InsertSeat = z.infer<typeof insertSeatSchema>;
@@ -141,6 +187,8 @@ export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type BulkBooking = z.infer<typeof bulkBookingSchema>;
 export type UserRole = typeof userRoles.$inferSelect;
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+export type Cluster = typeof clusters.$inferSelect;
+export type InsertCluster = z.infer<typeof insertClusterSchema>;
 export type TimeSlot = "AM" | "PM";
 export type SeatType = "solo" | "team_cluster";
 export type Role = "employee" | "admin";

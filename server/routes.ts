@@ -9,7 +9,9 @@ import {
   blockSeatSchema, 
   longTermReservationSchema,
   createSeatSchema,
-  updateUserRoleSchema
+  updateUserRoleSchema,
+  createClusterSchema,
+  updateClusterSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -204,6 +206,119 @@ export async function registerRoutes(
       }
       console.error("Error setting long-term reservation:", error);
       res.status(500).json({ message: "Failed to set long-term reservation" });
+    }
+  });
+
+  // ==================== CLUSTERS API ====================
+
+  // Get all clusters
+  app.get("/api/clusters", async (req, res) => {
+    try {
+      const clustersList = await storage.getAllClusters();
+      res.json(clustersList);
+    } catch (error) {
+      console.error("Error fetching clusters:", error);
+      res.status(500).json({ message: "Failed to fetch clusters" });
+    }
+  });
+
+  // Get single cluster
+  app.get("/api/clusters/:id", async (req, res) => {
+    try {
+      const cluster = await storage.getCluster(req.params.id);
+      if (!cluster) {
+        return res.status(404).json({ message: "Cluster not found" });
+      }
+      res.json(cluster);
+    } catch (error) {
+      console.error("Error fetching cluster:", error);
+      res.status(500).json({ message: "Failed to fetch cluster" });
+    }
+  });
+
+  // Create cluster (admin only)
+  app.post("/api/clusters", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (userRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const clusterData = createClusterSchema.parse(req.body);
+      
+      // Check if cluster with same id exists
+      const existingCluster = await storage.getCluster(clusterData.id);
+      if (existingCluster) {
+        return res.status(409).json({ message: "Cluster with this ID already exists" });
+      }
+
+      const cluster = await storage.createCluster(clusterData);
+      res.status(201).json(cluster);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid cluster data", errors: error.errors });
+      }
+      console.error("Error creating cluster:", error);
+      res.status(500).json({ message: "Failed to create cluster" });
+    }
+  });
+
+  // Update cluster (admin only)
+  app.patch("/api/clusters/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (userRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const validatedData = updateClusterSchema.parse(req.body);
+      const cluster = await storage.updateCluster(req.params.id, validatedData);
+      
+      if (!cluster) {
+        return res.status(404).json({ message: "Cluster not found" });
+      }
+      res.json(cluster);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid cluster data", errors: error.errors });
+      }
+      console.error("Error updating cluster:", error);
+      res.status(500).json({ message: "Failed to update cluster" });
+    }
+  });
+
+  // Delete cluster (admin only)
+  app.delete("/api/clusters/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (userRole?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const cluster = await storage.getCluster(req.params.id);
+      if (!cluster) {
+        return res.status(404).json({ message: "Cluster not found" });
+      }
+
+      // Remove cluster association from seats
+      const seats = await storage.getAllSeats();
+      for (const seat of seats) {
+        if (seat.clusterGroup === req.params.id) {
+          await storage.updateSeat(seat.id, { clusterGroup: null });
+        }
+      }
+
+      await storage.deleteCluster(req.params.id);
+      res.json({ message: "Cluster deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting cluster:", error);
+      res.status(500).json({ message: "Failed to delete cluster" });
     }
   });
 
