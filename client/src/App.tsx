@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -7,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
+import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import AdminPortal from "@/pages/admin";
 import NotFound from "@/pages/not-found";
@@ -78,6 +78,9 @@ function AuthenticatedApp() {
         {user ? <Redirect to="/" /> : <RegisterPage />}
       </Route>
       <Route path="/">
+        {user ? <Dashboard userRole={role} /> : <Landing />}
+      </Route>
+      <Route path="/dashboard">
         <ProtectedRoute>
           <Dashboard userRole={role} />
         </ProtectedRoute>
