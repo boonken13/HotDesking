@@ -1,6 +1,9 @@
 import { db } from "./db";
 import { seats, clusters, userRoles } from "@shared/schema";
-import { sql } from "drizzle-orm";
+import { users, invites } from "@shared/models/auth";
+import { sql, eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 // Long-term reserved desks (yellow ones from the floor plan)
 const LONG_TERM_RESERVED = [
@@ -105,6 +108,40 @@ async function seed() {
     await db.insert(seats).values(allSeats);
     console.log(`Created ${allSeats.length} seats`);
     console.log(`Long-term reserved: ${LONG_TERM_RESERVED.length} seats`);
+
+    // Create default admin user if no users exist
+    const existingUsers = await db.select().from(users);
+    if (existingUsers.length === 0) {
+      const adminPassword = await bcrypt.hash("admin123", 10);
+      const [adminUser] = await db.insert(users).values({
+        email: "admin@company.com",
+        password: adminPassword,
+        firstName: "Admin",
+        lastName: "User",
+      }).returning();
+      
+      await db.insert(userRoles).values({
+        userId: adminUser.id,
+        role: "admin",
+      });
+      
+      console.log("Created default admin user: admin@company.com / admin123");
+      
+      // Create initial invite code for other employees
+      const inviteCode = crypto.randomBytes(16).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30); // 30 day expiry
+      
+      await db.insert(invites).values({
+        code: inviteCode,
+        createdBy: adminUser.id,
+        expiresAt,
+      });
+      
+      console.log(`Created initial invite code: ${inviteCode}`);
+    } else {
+      console.log(`Found ${existingUsers.length} existing users. Skipping admin creation.`);
+    }
 
     console.log("Seeding complete!");
   } catch (error) {

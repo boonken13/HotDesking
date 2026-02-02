@@ -12,6 +12,7 @@ import { BookingManagement } from "@/components/admin/booking-management";
 import { FloorPlanEditor } from "@/components/admin/floor-plan-editor";
 import { VisualFloorEditor } from "@/components/admin/visual-floor-editor";
 import { UserManagement } from "@/components/admin/user-management";
+import { InviteManagement } from "@/components/admin/invite-management";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Seat, Booking, TimeSlot } from "@shared/schema";
 import { isUnauthorizedError } from "@/lib/auth-utils";
@@ -46,7 +47,7 @@ export default function AdminPortal() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
@@ -70,7 +71,7 @@ export default function AdminPortal() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Action failed", description: error.message, variant: "destructive" });
@@ -97,7 +98,7 @@ export default function AdminPortal() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Action failed", description: error.message, variant: "destructive" });
@@ -116,7 +117,7 @@ export default function AdminPortal() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Failed to cancel", description: error.message, variant: "destructive" });
@@ -148,13 +149,14 @@ export default function AdminPortal() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl grid-cols-6">
+          <TabsList className="grid w-full max-w-4xl grid-cols-7">
             <TabsTrigger value="overview" data-testid="tab-overview">Floor Plan</TabsTrigger>
             <TabsTrigger value="editor" data-testid="tab-editor">Layout Editor</TabsTrigger>
             <TabsTrigger value="config" data-testid="tab-config">Seats</TabsTrigger>
             <TabsTrigger value="seat-props" data-testid="tab-seat-props">Properties</TabsTrigger>
             <TabsTrigger value="bookings" data-testid="tab-bookings">Bookings</TabsTrigger>
             <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
+            <TabsTrigger value="invites" data-testid="tab-invites">Invites</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -212,6 +214,10 @@ export default function AdminPortal() {
 
           <TabsContent value="users">
             <UserManagement />
+          </TabsContent>
+
+          <TabsContent value="invites">
+            <InviteManagement />
           </TabsContent>
         </Tabs>
       </main>

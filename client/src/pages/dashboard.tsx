@@ -83,7 +83,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -116,7 +116,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -165,7 +165,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header user={user} userRole={userRole} onLogout={logout} />
+      <Header user={user ?? null} userRole={userRole} onLogout={logout} />
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">

@@ -16,7 +16,7 @@ export default function Landing() {
             <span className="font-semibold text-lg">HotDesk</span>
           </div>
           <Button asChild data-testid="button-login">
-            <a href="/api/login">Sign In</a>
+            <a href="/login">Sign In</a>
           </Button>
         </div>
       </nav>
@@ -40,7 +40,7 @@ export default function Landing() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button size="lg" asChild className="gap-2" data-testid="button-get-started">
-                  <a href="/api/login">
+                  <a href="/login">
                     Get Started <ArrowRight className="h-4 w-4" />
                   </a>
                 </Button>
@@ -188,7 +188,7 @@ export default function Landing() {
             Join teams who have simplified their desk booking process with HotDesk.
           </p>
           <Button size="lg" asChild className="gap-2" data-testid="button-cta-signup">
-            <a href="/api/login">
+            <a href="/login">
               Start Booking Now <ArrowRight className="h-4 w-4" />
             </a>
           </Button>

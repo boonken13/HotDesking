@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { registerAuthRoutes, isAuthenticated } from "./auth";
 import { 
   insertBookingSchema, 
   bulkBookingSchema, 
@@ -19,14 +19,13 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Setup Replit Auth
-  await setupAuth(app);
+  // Register auth routes (email/password with JWT)
   registerAuthRoutes(app);
 
   // Get user role
   app.get("/api/user/role", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       let userRole = await storage.getUserRole(userId);
       
       // If no role exists, create default employee role
@@ -71,7 +70,7 @@ export async function registerRoutes(
   // Update seat (admin only)
   app.patch("/api/seats/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -98,7 +97,7 @@ export async function registerRoutes(
   // Block/unblock seat (admin only)
   app.patch("/api/seats/:id/block", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -125,7 +124,7 @@ export async function registerRoutes(
   // Create seat (admin only)
   app.post("/api/seats", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -159,7 +158,7 @@ export async function registerRoutes(
   // Delete seat (admin only)
   app.delete("/api/seats/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -182,7 +181,7 @@ export async function registerRoutes(
   // Set long-term reservation (admin only)
   app.patch("/api/seats/:id/long-term", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -239,7 +238,7 @@ export async function registerRoutes(
   // Create cluster (admin only)
   app.post("/api/clusters", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -268,7 +267,7 @@ export async function registerRoutes(
   // Update cluster (admin only)
   app.patch("/api/clusters/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -294,7 +293,7 @@ export async function registerRoutes(
   // Delete cluster (admin only)
   app.delete("/api/clusters/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -338,7 +337,7 @@ export async function registerRoutes(
   // Get user's own bookings
   app.get("/api/bookings/my", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const bookings = await storage.getBookingsByUser(userId);
       res.json(bookings);
     } catch (error) {
@@ -362,7 +361,7 @@ export async function registerRoutes(
   // Create single booking
   app.post("/api/bookings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userClaims = req.user.claims;
 
       const bookingData = insertBookingSchema.parse({
@@ -408,7 +407,7 @@ export async function registerRoutes(
   // Bulk booking
   app.post("/api/bookings/bulk", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userClaims = req.user.claims;
 
       const { seatIds, dates, slots } = bulkBookingSchema.parse(req.body);
@@ -495,7 +494,7 @@ export async function registerRoutes(
   // Cancel booking
   app.delete("/api/bookings/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const booking = await storage.getBooking(req.params.id);
       
       if (!booking) {
@@ -521,7 +520,7 @@ export async function registerRoutes(
   // Get all users with roles (admin only)
   app.get("/api/users", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const userRole = await storage.getUserRole(userId);
       
       if (userRole?.role !== "admin") {
@@ -551,7 +550,7 @@ export async function registerRoutes(
   // Update user role (admin only)
   app.patch("/api/users/:userId/role", isAuthenticated, async (req: any, res) => {
     try {
-      const adminId = req.user.claims.sub;
+      const adminId = req.user.userId;
       const adminRole = await storage.getUserRole(adminId);
       
       if (adminRole?.role !== "admin") {
@@ -588,7 +587,7 @@ export async function registerRoutes(
   // Deactivate/activate user (admin only)
   app.patch("/api/users/:userId/status", isAuthenticated, async (req: any, res) => {
     try {
-      const adminId = req.user.claims.sub;
+      const adminId = req.user.userId;
       const adminRole = await storage.getUserRole(adminId);
       
       if (adminRole?.role !== "admin") {
@@ -624,7 +623,7 @@ export async function registerRoutes(
   // Delete user role (admin only)
   app.delete("/api/users/:userId", isAuthenticated, async (req: any, res) => {
     try {
-      const adminId = req.user.claims.sub;
+      const adminId = req.user.userId;
       const adminRole = await storage.getUserRole(adminId);
       
       if (adminRole?.role !== "admin") {

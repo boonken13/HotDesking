@@ -1,10 +1,12 @@
-import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
-import Landing from "@/pages/landing";
+import LoginPage from "@/pages/auth/login";
+import RegisterPage from "@/pages/auth/register";
 import Dashboard from "@/pages/dashboard";
 import AdminPortal from "@/pages/admin";
 import NotFound from "@/pages/not-found";
@@ -29,46 +31,65 @@ function LoadingScreen() {
   );
 }
 
-function AuthenticatedRoutes() {
-  const { user, isLoading: authLoading } = useAuth();
-  const [location, setLocation] = useLocation();
+function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: Role }) {
+  const { user, isLoading } = useAuth();
+  const [location] = useLocation();
 
-  // Fetch user role
   const { data: userRole, isLoading: roleLoading } = useQuery<{ role: Role }>({
     queryKey: ["/api/user/role"],
     enabled: !!user,
   });
 
-  if (authLoading || (user && roleLoading)) {
+  if (isLoading) {
     return <LoadingScreen />;
   }
 
-  // Not authenticated - show landing page
   if (!user) {
-    return <Landing />;
+    return <Redirect to="/login" />;
   }
+
+  if (role && roleLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (role === "admin" && userRole?.role !== "admin") {
+    return <Redirect to="/" />;
+  }
+
+  return <>{children}</>;
+}
+
+function AuthenticatedApp() {
+  const { user, isLoading } = useAuth();
+
+  const { data: userRole } = useQuery<{ role: Role }>({
+    queryKey: ["/api/user/role"],
+    enabled: !!user,
+  });
 
   const role = userRole?.role || "employee";
 
   return (
     <Switch>
+      <Route path="/login">
+        {user ? <Redirect to="/" /> : <LoginPage />}
+      </Route>
+      <Route path="/register">
+        {user ? <Redirect to="/" /> : <RegisterPage />}
+      </Route>
       <Route path="/">
-        <Dashboard userRole={role} />
+        <ProtectedRoute>
+          <Dashboard userRole={role} />
+        </ProtectedRoute>
       </Route>
       <Route path="/admin">
-        {role === "admin" ? (
+        <ProtectedRoute role="admin">
           <AdminPortal />
-        ) : (
-          <Dashboard userRole={role} />
-        )}
+        </ProtectedRoute>
       </Route>
       <Route component={NotFound} />
     </Switch>
   );
-}
-
-function Router() {
-  return <AuthenticatedRoutes />;
 }
 
 function App() {
@@ -76,7 +97,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router />
+        <AuthenticatedApp />
       </TooltipProvider>
     </QueryClientProvider>
   );
