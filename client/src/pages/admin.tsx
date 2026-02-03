@@ -21,9 +21,9 @@ export default function AdminPortal() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
   const today = startOfToday();
-  
+
   const [selectedDate, setSelectedDate] = useState<Date>(today);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("bookings");
 
   // Fetch seats
   const { data: seats = [], isLoading: seatsLoading } = useQuery<Seat[]>({
@@ -31,33 +31,62 @@ export default function AdminPortal() {
   });
 
   // Fetch all bookings
-  const { data: allBookings = [], isLoading: bookingsLoading } = useQuery<Booking[]>({
+  const { data: allBookings = [], isLoading: bookingsLoading } = useQuery<
+    Booking[]
+  >({
     queryKey: ["/api/bookings"],
   });
 
   // Update seat mutation
   const updateSeatMutation = useMutation({
-    mutationFn: async ({ seatId, updates }: { seatId: string; updates: Partial<Seat> }) => {
+    mutationFn: async ({
+      seatId,
+      updates,
+    }: {
+      seatId: string;
+      updates: Partial<Seat>;
+    }) => {
       return apiRequest("PATCH", `/api/seats/${seatId}`, updates);
     },
     onSuccess: () => {
-      toast({ title: "Seat updated", description: "Seat settings have been saved." });
+      toast({
+        title: "Seat updated",
+        description: "Seat settings have been saved.",
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/seats"] });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/login"; }, 500);
+        toast({
+          title: "Session expired",
+          description: "Please sign in again.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 500);
         return;
       }
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      toast({
+        title: "Update failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
   // Block/unblock seat mutation
   const blockSeatMutation = useMutation({
-    mutationFn: async ({ seatId, blocked }: { seatId: string; blocked: boolean }) => {
-      return apiRequest("PATCH", `/api/seats/${seatId}/block`, { isBlocked: blocked });
+    mutationFn: async ({
+      seatId,
+      blocked,
+    }: {
+      seatId: string;
+      blocked: boolean;
+    }) => {
+      return apiRequest("PATCH", `/api/seats/${seatId}/block`, {
+        isBlocked: blocked,
+      });
     },
     onSuccess: (_, variables) => {
       toast({
@@ -70,17 +99,35 @@ export default function AdminPortal() {
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/login"; }, 500);
+        toast({
+          title: "Session expired",
+          description: "Please sign in again.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 500);
         return;
       }
-      toast({ title: "Action failed", description: error.message, variant: "destructive" });
+      toast({
+        title: "Action failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
   // Long-term reservation mutation
   const longTermMutation = useMutation({
-    mutationFn: async ({ seatId, reserved, reservedBy }: { seatId: string; reserved: boolean; reservedBy?: string }) => {
+    mutationFn: async ({
+      seatId,
+      reserved,
+      reservedBy,
+    }: {
+      seatId: string;
+      reserved: boolean;
+      reservedBy?: string;
+    }) => {
       return apiRequest("PATCH", `/api/seats/${seatId}/long-term`, {
         isLongTermReserved: reserved,
         longTermReservedBy: reservedBy,
@@ -88,7 +135,9 @@ export default function AdminPortal() {
     },
     onSuccess: (_, variables) => {
       toast({
-        title: variables.reserved ? "Long-term reservation set" : "Long-term reservation removed",
+        title: variables.reserved
+          ? "Long-term reservation set"
+          : "Long-term reservation removed",
         description: variables.reserved
           ? "The seat is now reserved for long-term use."
           : "The seat is now available for regular booking.",
@@ -97,11 +146,21 @@ export default function AdminPortal() {
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/login"; }, 500);
+        toast({
+          title: "Session expired",
+          description: "Please sign in again.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 500);
         return;
       }
-      toast({ title: "Action failed", description: error.message, variant: "destructive" });
+      toast({
+        title: "Action failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -111,16 +170,29 @@ export default function AdminPortal() {
       return apiRequest("DELETE", `/api/bookings/${bookingId}`);
     },
     onSuccess: () => {
-      toast({ title: "Booking cancelled", description: "The reservation has been cancelled." });
+      toast({
+        title: "Booking cancelled",
+        description: "The reservation has been cancelled.",
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/login"; }, 500);
+        toast({
+          title: "Session expired",
+          description: "Please sign in again.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 500);
         return;
       }
-      toast({ title: "Failed to cancel", description: error.message, variant: "destructive" });
+      toast({
+        title: "Failed to cancel",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -132,7 +204,11 @@ export default function AdminPortal() {
     blockSeatMutation.mutate({ seatId, blocked });
   };
 
-  const handleSetLongTerm = (seatId: string, reserved: boolean, reservedBy?: string) => {
+  const handleSetLongTerm = (
+    seatId: string,
+    reserved: boolean,
+    reservedBy?: string,
+  ) => {
     longTermMutation.mutate({ seatId, reserved, reservedBy });
   };
 
@@ -148,15 +224,31 @@ export default function AdminPortal() {
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-4xl grid-cols-7">
-            <TabsTrigger value="overview" data-testid="tab-overview">Floor Plan</TabsTrigger>
-            <TabsTrigger value="editor" data-testid="tab-editor">Layout Editor</TabsTrigger>
-            <TabsTrigger value="config" data-testid="tab-config">Seats</TabsTrigger>
-            <TabsTrigger value="seat-props" data-testid="tab-seat-props">Properties</TabsTrigger>
-            <TabsTrigger value="bookings" data-testid="tab-bookings">Bookings</TabsTrigger>
-            <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
-            <TabsTrigger value="invites" data-testid="tab-invites">Invites</TabsTrigger>
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-6"
+        >
+          <TabsList className="grid w-full max-w-4xl grid-cols-6">
+            {/* <TabsTrigger value="overview" data-testid="tab-overview">Floor Plan</TabsTrigger> */}
+            <TabsTrigger value="bookings" data-testid="tab-bookings">
+              Bookings
+            </TabsTrigger>
+            <TabsTrigger value="config" data-testid="tab-config">
+              Seats
+            </TabsTrigger>
+            <TabsTrigger value="users" data-testid="tab-users">
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="invites" data-testid="tab-invites">
+              Invites
+            </TabsTrigger>
+            <TabsTrigger value="seat-props" data-testid="tab-seat-props">
+              Properties
+            </TabsTrigger>
+            <TabsTrigger value="editor" data-testid="tab-editor">
+              Layout Editor
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -185,10 +277,7 @@ export default function AdminPortal() {
           </TabsContent>
 
           <TabsContent value="config">
-            <FloorPlanEditor
-              seats={seats}
-              isLoading={seatsLoading}
-            />
+            <FloorPlanEditor seats={seats} isLoading={seatsLoading} />
           </TabsContent>
 
           <TabsContent value="seat-props">
@@ -197,7 +286,11 @@ export default function AdminPortal() {
               onUpdateSeat={handleUpdateSeat}
               onBlockSeat={handleBlockSeat}
               onSetLongTermReservation={handleSetLongTerm}
-              isUpdating={updateSeatMutation.isPending || blockSeatMutation.isPending || longTermMutation.isPending}
+              isUpdating={
+                updateSeatMutation.isPending ||
+                blockSeatMutation.isPending ||
+                longTermMutation.isPending
+              }
               isLoading={seatsLoading}
             />
           </TabsContent>
